@@ -4,4 +4,7 @@ version = "0.1.0"
 authors = ["Matt Jones <jonesmr@gmail.com>"]
 
 [dependencies]
+image = "*"
+imageproc = "*"
 rppal = "*"
+rusttype = "^0.5"
