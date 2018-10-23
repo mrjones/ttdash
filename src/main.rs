@@ -5,6 +5,7 @@ extern crate reqwest;
 extern crate rppal;
 extern crate rusttype;
 
+mod result;
 mod webclient_api;
 
 use rppal::gpio::{Gpio, Level, Mode};
@@ -151,14 +152,15 @@ fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<ima
 
 }
 
-fn fetch_data() -> webclient_api::StationStatus {
+fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
     let url = format!("http://linode.mrjon.es:3838/api/station/028").to_string();
-    let mut response = reqwest::get(&url).expect("http get");
+    let mut response = reqwest::get(&url)?;
     let mut response_body = vec![];
     use std::io::Read;
-    response.read_to_end(&mut response_body).expect("body read");
-    return protobuf::parse_from_bytes::<webclient_api::StationStatus>(
-        &response_body).expect("proto parse");
+    response.read_to_end(&mut response_body)?;
+    let proto = protobuf::parse_from_bytes::<webclient_api::StationStatus>(
+        &response_body)?;
+    return Ok(proto);
 }
 
 fn main() {
@@ -167,7 +169,7 @@ fn main() {
     println!("Running. display={}", display);
 
 
-    println!("RESPONSE: {:?}", fetch_data());
+    println!("RESPONSE: {:?}", fetch_data().expect("fetch data"));
 
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
     //    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") as &[u8]);
