@@ -1,4 +1,5 @@
 extern crate chrono;
+extern crate chrono_tz;
 extern crate image;
 extern crate imageproc;
 extern crate protobuf;
@@ -194,7 +195,8 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
 
     //    let next_arrival = chrono::prelude::DateTime::<chrono::Utc>::from(data.upcoming_trains[0]);
     use chrono::TimeZone;
-    let next_arrival = chrono::Utc.timestamp(data.upcoming_trains[0], 0);
+//    let next_arrival = chrono::Utc.timestamp(data.upcoming_trains[0], 0);
+    let next_arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[0], 0);
     let next_arrival_formatted = next_arrival.format("%Y-%m-%d %H:%M:%S").to_string();
     imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 50, scale, &font, &next_arrival_formatted);
 

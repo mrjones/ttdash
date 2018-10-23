@@ -5,6 +5,7 @@ authors = ["Matt Jones <jonesmr@gmail.com>"]
 
 [dependencies]
 chrono = "*"
+chrono-tz = "*"
 image = "*"
 imageproc = "*"
 protobuf = "*"
