@@ -115,21 +115,21 @@ fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<ima
         for x in 0..EPD_WIDTH {
             let color = imgbuf.get_pixel(x as u32, y as u32).to_luma().data[0];
             if x % 2 == 0 {
-                if color < 64{
+                if color < 32 {
                     pixel_in_progress = 0x00;
-                } else if color < 128 {
+                } else if color < 64 {
                     pixel_in_progress = 0x10;
-                } else if color < 192 {
+                } else if color < 128 {
                     pixel_in_progress = 0x20;
                 } else {
                     pixel_in_progress = 0x30;
                 }
             } else {
-                if color < 64 {
+                if color < 32 {
                     pixel_in_progress |= 0x00;
-                } else if color < 128 {
+                } else if color < 64 {
                     pixel_in_progress |= 0x01;
-                } else if color < 192 {
+                } else if color < 128 {
                     pixel_in_progress |= 0x02;
                 } else {
                     pixel_in_progress |= 0x03;
