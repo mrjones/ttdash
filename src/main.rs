@@ -1,10 +1,14 @@
 extern crate image;
 extern crate imageproc;
+extern crate protobuf;
 extern crate rppal;
 extern crate rusttype;
 
+mod webclient_api;
+
 use rppal::gpio::{Gpio, Level, Mode};
 use rppal::spi::{Spi};
+
 
 const EPD_WIDTH: usize = 640;
 const EPD_HEIGHT: usize = 384;
@@ -152,7 +156,8 @@ fn main() {
     println!("Running. display={}", display);
 
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
-    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") as &[u8]);
+    //    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") as &[u8]);
+    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
     let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
 
     let scale = rusttype::Scale { x: 50.0, y: 50.0 };

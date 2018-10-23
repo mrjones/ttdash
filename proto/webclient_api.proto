@@ -1,0 +1,88 @@
+syntax = "proto2";
+
+enum Direction {
+  UPTOWN = 0;
+  DOWNTOWN = 1;
+}
+
+message DebugInfo {
+  optional int64 processing_time_ms = 1;
+  optional string build_version = 2;
+  optional int64 build_timestamp = 3;
+}
+
+message LineArrival {
+  optional int64 timestamp = 1;
+  optional string trip_id = 2;
+  optional string headsign = 3;
+}
+
+message LineArrivals {
+  optional string line = 1;
+  optional Direction direction = 2;
+  optional string line_color_hex = 4;
+  repeated LineArrival arrivals = 6;
+
+  optional DebugInfo debug_info = 5;
+
+  reserved 3;
+}
+
+message TrainItineraryArrival {
+  optional int64 timestamp = 1;
+  optional Station station = 2;
+}
+
+message TrainItinerary {
+  optional string line = 1;
+  optional Direction direction = 2;
+  optional string line_color_hex = 3;
+  repeated TrainItineraryArrival arrival = 4;
+  optional int64 data_timestamp = 6;
+
+  optional DebugInfo debug_info = 5;
+}
+
+message StationStatus {
+  optional string name = 1;
+  optional string id = 5;
+  repeated LineArrivals line = 2;
+  optional int64 data_timestamp = 3;
+
+  optional DebugInfo debug_info = 4;
+}
+
+message Station {
+  optional string id = 1;
+  optional string name = 2;
+  repeated string lines = 3;
+}
+
+message StationList {
+  repeated Station station = 1;
+
+  optional DebugInfo debug_info = 5;
+}
+
+message Line {
+  optional string name = 1;
+  optional string color_hex = 2;
+  optional bool active = 3;
+}
+
+message LineList {
+  repeated Line line = 1;
+
+  optional DebugInfo debug_info = 4;
+}
+
+message TrainArrivalHistoryEntry {
+  optional int64 data_timestamp = 1;
+  optional int64 arrival_time = 2;
+}
+
+message TrainArrivalHistory {
+  optional DebugInfo debug_info = 1;
+
+  repeated TrainArrivalHistoryEntry history = 2;
+}

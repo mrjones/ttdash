@@ -6,5 +6,6 @@ authors = ["Matt Jones <jonesmr@gmail.com>"]
 [dependencies]
 image = "*"
 imageproc = "*"
+protobuf = "*"
 rppal = "*"
 rusttype = "^0.5"
