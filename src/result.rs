@@ -6,7 +6,7 @@ pub type TTDashResult<T> = std::result::Result<T, TTDashError>;
 
 #[derive(Debug)]
 pub enum TTDashError {
-    GenericError(String),
+//    GenericError(String),
     HttpError(reqwest::Error),
     IoError(std::io::Error),
     ProtobufError(protobuf::ProtobufError),
@@ -24,7 +24,7 @@ impl std::fmt::Display for TTDashError {
             TTDashError::ProtobufError(ref err) => {
                 return write!(f, "Protobuf Error: {}", err);
             },
-            TTDashError::GenericError(ref e) => std::fmt::Display::fmt(e, f),
+//            TTDashError::GenericError(ref e) => std::fmt::Display::fmt(e, f),
         }
     }
 }
@@ -35,7 +35,7 @@ impl std::error::Error for TTDashError {
             TTDashError::HttpError(_) => "HttpError",
             TTDashError::IoError(_) => "IoError",
             TTDashError::ProtobufError(_) => "ProtobufError",
-            TTDashError::GenericError(ref str) => str,
+//            TTDashError::GenericError(ref str) => str,
         }
     }
 

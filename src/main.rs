@@ -163,14 +163,14 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
     return Ok(proto);
 }
 
-fn main() {
-    let args: Vec<_> = std::env::args().collect();
-    let display = args.len() == 1 || args[1] != "nopi";
-    println!("Running. display={}", display);
+struct ProcessedData {
+}
 
+fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<ProcessedData> {
+    return Ok(ProcessedData{});
+}
 
-    println!("RESPONSE: {:?}", fetch_data().expect("fetch data"));
-
+fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
     //    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") as &[u8]);
     let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
@@ -180,19 +180,40 @@ fn main() {
     imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), image::Luma{data: [255u8; 1]});
     imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 10, scale, &font, "Cristina is pretty");
 
+    return Ok(imgbuf);
+}
+
+fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
+    let mut gpio = rppal::gpio::Gpio::new().expect("Gpio::new()");
+
+    // Don't forget to enable SPI with sudo raspi-config
+    let mut spi = rppal::spi::Spi::new(
+        rppal::spi::Bus::Spi0,
+        rppal::spi::SlaveSelect::Ss0,
+        2000000,
+        rppal::spi::Mode::Mode0).expect("Spi::new()");
+
+    init_display(&mut gpio, &mut spi);
+    display_image(&mut gpio, &mut spi, image);
+
+    return Ok(());
+}
+
+fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    let display = args.len() == 1 || args[1] != "nopi";
+    println!("Running. display={}", display);
+
+    let raw_data = fetch_data().expect("fetch data");
+    println!("RESPONSE: {:?}", raw_data);
+
+    let processed_data = process_data(&raw_data).expect("process data");
+    let imgbuf = generate_image(&processed_data).expect("generate image");
+
+
     let _ = imgbuf.save("/tmp/image.png").unwrap();
 
     if display {
-        let mut gpio = rppal::gpio::Gpio::new().expect("Gpio::new()");
-
-        // Don't forget to enable SPI with sudo raspi-config
-        let mut spi = rppal::spi::Spi::new(
-            rppal::spi::Bus::Spi0,
-            rppal::spi::SlaveSelect::Ss0,
-            2000000,
-            rppal::spi::Mode::Mode0).expect("Spi::new()");
-
-        init_display(&mut gpio, &mut spi);
-        display_image(&mut gpio, &mut spi, &imgbuf);
+        setup_and_display_image(&imgbuf).expect("display image");
     }
 }
