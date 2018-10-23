@@ -1,3 +1,4 @@
+extern crate chrono;
 extern crate image;
 extern crate imageproc;
 extern crate protobuf;
@@ -164,10 +165,21 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
 }
 
 struct ProcessedData {
+    upcoming_trains: Vec<i64>,
 }
 
 fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<ProcessedData> {
-    return Ok(ProcessedData{});
+    let mut arrivals = vec![];
+    for line in data.get_line() {
+        if line.get_line() == "R" && line.get_direction() == webclient_api::Direction::UPTOWN {
+            for arrival in line.get_arrivals() {
+                arrivals.push(arrival.get_timestamp());
+            }
+        }
+    }
+
+    arrivals.sort();
+    return Ok(ProcessedData{upcoming_trains: arrivals});
 }
 
 fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
@@ -179,6 +191,12 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
     let scale = rusttype::Scale { x: 50.0, y: 50.0 };
     imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), image::Luma{data: [255u8; 1]});
     imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 10, scale, &font, "Cristina is pretty");
+
+    //    let next_arrival = chrono::prelude::DateTime::<chrono::Utc>::from(data.upcoming_trains[0]);
+    use chrono::TimeZone;
+    let next_arrival = chrono::Utc.timestamp(data.upcoming_trains[0], 0);
+    let next_arrival_formatted = next_arrival.format("%Y-%m-%d %H:%M:%S").to_string();
+    imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 50, scale, &font, &next_arrival_formatted);
 
     return Ok(imgbuf);
 }
