@@ -1,6 +1,7 @@
 extern crate image;
 extern crate imageproc;
 extern crate protobuf;
+extern crate reqwest;
 extern crate rppal;
 extern crate rusttype;
 
@@ -150,10 +151,23 @@ fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<ima
 
 }
 
+fn fetch_data() -> webclient_api::StationStatus {
+    let url = format!("http://linode.mrjon.es:3838/api/station/028").to_string();
+    let mut response = reqwest::get(&url).expect("http get");
+    let mut response_body = vec![];
+    use std::io::Read;
+    response.read_to_end(&mut response_body).expect("body read");
+    return protobuf::parse_from_bytes::<webclient_api::StationStatus>(
+        &response_body).expect("proto parse");
+}
+
 fn main() {
     let args: Vec<_> = std::env::args().collect();
     let display = args.len() == 1 || args[1] != "nopi";
     println!("Running. display={}", display);
+
+
+    println!("RESPONSE: {:?}", fetch_data());
 
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
     //    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") as &[u8]);

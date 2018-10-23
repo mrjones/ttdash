@@ -7,5 +7,6 @@ authors = ["Matt Jones <jonesmr@gmail.com>"]
 image = "*"
 imageproc = "*"
 protobuf = "*"
+reqwest = "*"
 rppal = "*"
 rusttype = "^0.5"
