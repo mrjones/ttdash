@@ -1,3 +1,4 @@
+// sudo apt-get install fonts-roboto libssl-dev
 extern crate chrono;
 extern crate chrono_tz;
 extern crate image;
@@ -167,39 +168,70 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
 
 struct ProcessedData {
     upcoming_trains: Vec<i64>,
+    big_countdown: Option<String>,
 }
 
 fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<ProcessedData> {
     let mut arrivals = vec![];
+    let now = chrono::Utc::now().timestamp();
     for line in data.get_line() {
         if line.get_line() == "R" && line.get_direction() == webclient_api::Direction::UPTOWN {
             for arrival in line.get_arrivals() {
-                arrivals.push(arrival.get_timestamp());
+                if arrival.get_timestamp() > now {
+                    arrivals.push(arrival.get_timestamp());
+                }
             }
         }
     }
 
-    arrivals.sort();
-    return Ok(ProcessedData{upcoming_trains: arrivals});
+    if arrivals.len() == 0 {
+        return Ok(ProcessedData{upcoming_trains: vec![], big_countdown: None});
+    } else {
+        arrivals.sort();
+        let wait_seconds = arrivals[0] - now;
+
+        let mut wait_string = "".to_string();
+        if wait_seconds < 60 {
+            wait_string = "< 1m".to_string();
+        } else if wait_seconds < 120 {
+            wait_string = "1-2m".to_string();
+        } else if wait_seconds < 180 {
+            wait_string = "2-3m".to_string();
+        } else {
+            wait_string = format!("{}m", wait_seconds / 60);
+        }
+     
+        return Ok(ProcessedData{
+            upcoming_trains: arrivals,
+            big_countdown: Some(wait_string.to_string()),
+        });
+    }
 }
 
 fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
-    //    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") as &[u8]);
     let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
     let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
 
-    let scale = rusttype::Scale { x: 50.0, y: 50.0 };
-    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), image::Luma{data: [255u8; 1]});
-    imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 10, scale, &font, "Cristina is pretty");
+    let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Black.ttf") as &[u8]);
+    let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
 
-    //    let next_arrival = chrono::prelude::DateTime::<chrono::Utc>::from(data.upcoming_trains[0]);
+    let scale50x50 = rusttype::Scale { x: 50.0, y: 50.0 };
+    let scale150x150 = rusttype::Scale { x: 150.0, y: 150.0 };
+    
+    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), image::Luma{data: [255u8; 1]});
+    imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 10, scale50x50, &font, "Cristina is pretty");
+
     use chrono::TimeZone;
-//    let next_arrival = chrono::Utc.timestamp(data.upcoming_trains[0], 0);
     let next_arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[0], 0);
     let next_arrival_formatted = next_arrival.format("%Y-%m-%d %H:%M:%S").to_string();
-    imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 50, scale, &font, &next_arrival_formatted);
+    imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 50, scale50x50, &font, &next_arrival_formatted);
 
+    match data.big_countdown {
+        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 100, scale150x150, &font_black, big_text),
+        _ => {},
+    }
+    
     return Ok(imgbuf);
 }
 
