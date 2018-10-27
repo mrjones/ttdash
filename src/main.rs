@@ -125,21 +125,21 @@ fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<ima
         for x in 0..EPD_WIDTH {
             let color = imgbuf.get_pixel(x as u32, y as u32).to_luma().data[0];
             if x % 2 == 0 {
-                if color < 32 {
+                if color < 64 {
                     pixel_in_progress = 0x00;
-                } else if color < 64 {
-                    pixel_in_progress = 0x10;
                 } else if color < 128 {
+                    pixel_in_progress = 0x10;
+                } else if color < 192 {
                     pixel_in_progress = 0x20;
                 } else {
                     pixel_in_progress = 0x30;
                 }
             } else {
-                if color < 32 {
+                if color < 64 {
                     pixel_in_progress |= 0x00;
-                } else if color < 64 {
-                    pixel_in_progress |= 0x01;
                 } else if color < 128 {
+                    pixel_in_progress |= 0x01;
+                } else if color < 192 {
                     pixel_in_progress |= 0x02;
                 } else {
                     pixel_in_progress |= 0x03;
@@ -170,11 +170,16 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
 struct ProcessedData {
     upcoming_trains: Vec<i64>,
     big_countdown: Option<String>,
+    station_name: String,
 }
 
 impl ProcessedData {
     fn empty() -> ProcessedData {
-        return ProcessedData{ upcoming_trains: vec![], big_countdown: None };
+        return ProcessedData{
+            upcoming_trains: vec![],
+            big_countdown: None,
+            station_name: "".to_string(),
+        };
     }
 }
 
@@ -182,13 +187,13 @@ fn countdown_summary(now_ts: i64, arrival_ts: i64) -> String {
     let wait_seconds = arrival_ts - now_ts;
 
     if wait_seconds < 60 {
-        return "<1m".to_string();
+        return "<1".to_string();
     } else if wait_seconds < 120 {
-        return "1-2m".to_string();
+        return "1-2".to_string();
     } else if wait_seconds < 180 {
-        return "2-3m".to_string();
+        return "2-3".to_string();
     }
-    return format!("{}m", wait_seconds / 60);
+    return format!("{}", wait_seconds / 60);
 }
 
 fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<ProcessedData> {
@@ -205,14 +210,15 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
     }
 
     if arrivals.len() == 0 {
-        return Ok(ProcessedData{upcoming_trains: vec![], big_countdown: None});
+        return Ok(ProcessedData::empty());
     } else {
         arrivals.sort();
         let first_arrival = arrivals[0];
         
         return Ok(ProcessedData{
             upcoming_trains: arrivals,
-            big_countdown: Some(countdown_summary(now, first_arrival))
+            big_countdown: Some(countdown_summary(now, first_arrival)),
+            station_name: data.get_name().to_string(),
         });
     }
 }
@@ -225,14 +231,19 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
     let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Black.ttf") as &[u8]);
     let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
 
+    let font_bold = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Bold.ttf") as &[u8]);
+    let font_bold = rusttype::FontCollection::from_bytes(font_bold).unwrap().into_font().unwrap();
+
     let color_black = image::Luma{data: [0u8; 1]};
     let color_white = image::Luma{data: [255u8; 1]};
     
+    let scale30 = rusttype::Scale { x: 30.0, y: 30.0 };
     let scale50 = rusttype::Scale { x: 50.0, y: 50.0 };
     let bignum_scale = rusttype::Scale { x: 250.0, y: 250.0 };
     
     imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), color_white);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 10, scale50, &font, "Cristina is pretty");
+    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 5, scale30, &font_bold, "Uptown R");
+    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 35, scale30, &font_bold, &data.station_name);
 
     use chrono::TimeZone;
 
