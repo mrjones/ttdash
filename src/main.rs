@@ -224,7 +224,7 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
 }
 
 fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
-    let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
+    let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_WIDTH as u32);
     let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
     let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
 
@@ -237,29 +237,34 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
     let color_black = image::Luma{data: [0u8; 1]};
     let color_white = image::Luma{data: [255u8; 1]};
     
-    let scale30 = rusttype::Scale { x: 30.0, y: 30.0 };
+    let scale40 = rusttype::Scale { x: 40.0, y: 40.0 };
     let scale50 = rusttype::Scale { x: 50.0, y: 50.0 };
     let bignum_scale = rusttype::Scale { x: 250.0, y: 250.0 };
-    
-    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), color_white);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 5, scale30, &font_bold, "Uptown R");
-    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 35, scale30, &font_bold, &data.station_name);
 
+    // Flipped since we'll rotate
+    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_HEIGHT as u32, EPD_WIDTH as u32), color_white);
+
+    let header_text = format!("{} / Manhattan / R", data.station_name);
+    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 10, scale40, &font_bold, &header_text);
+
+    imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (10.0, 55.0), (EPD_HEIGHT as f32 - 10.0, 55.0), color_black);
+    
     use chrono::TimeZone;
 
     match data.big_countdown {
-        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 20, bignum_scale, &font_black, big_text),
+        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 15, bignum_scale, &font_black, big_text),
         _ => {},
     }
 
     for i in 0..std::cmp::min(data.upcoming_trains.len(), 3) {
         let arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[i], 0);
         let arrival_formatted = arrival.format("%-I:%M").to_string();
-        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 250 + 40 * i as u32, scale50, &font, &arrival_formatted);
+        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 100, 60 + 40 * i as u32, scale50, &font, &arrival_formatted);
     }
 
-    
-    return Ok(imgbuf);
+    let mut rotated = imageproc::affine::rotate(&imgbuf, (EPD_HEIGHT as f32 / 2.0 as f32, EPD_HEIGHT as f32 / 2.0), (270 as f32).to_radians(), imageproc::affine::Interpolation::Bilinear);
+
+    return Ok(image::imageops::crop(&mut rotated, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
 }
 
 fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
