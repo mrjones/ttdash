@@ -1,6 +1,7 @@
 // sudo apt-get install fonts-roboto libssl-dev
 extern crate chrono;
 extern crate chrono_tz;
+extern crate getopts;
 extern crate image;
 extern crate imageproc;
 extern crate protobuf;
@@ -171,6 +172,25 @@ struct ProcessedData {
     big_countdown: Option<String>,
 }
 
+impl ProcessedData {
+    fn empty() -> ProcessedData {
+        return ProcessedData{ upcoming_trains: vec![], big_countdown: None };
+    }
+}
+
+fn countdown_summary(now_ts: i64, arrival_ts: i64) -> String {
+    let wait_seconds = arrival_ts - now_ts;
+
+    if wait_seconds < 60 {
+        return "<1m".to_string();
+    } else if wait_seconds < 120 {
+        return "1-2m".to_string();
+    } else if wait_seconds < 180 {
+        return "2-3m".to_string();
+    }
+    return format!("{}m", wait_seconds / 60);
+}
+
 fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<ProcessedData> {
     let mut arrivals = vec![];
     let now = chrono::Utc::now().timestamp();
@@ -188,22 +208,11 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
         return Ok(ProcessedData{upcoming_trains: vec![], big_countdown: None});
     } else {
         arrivals.sort();
-        let wait_seconds = arrivals[0] - now;
-
-        let mut wait_string = "".to_string();
-        if wait_seconds < 60 {
-            wait_string = "< 1m".to_string();
-        } else if wait_seconds < 120 {
-            wait_string = "1-2m".to_string();
-        } else if wait_seconds < 180 {
-            wait_string = "2-3m".to_string();
-        } else {
-            wait_string = format!("{}m", wait_seconds / 60);
-        }
-     
+        let first_arrival = arrivals[0];
+        
         return Ok(ProcessedData{
             upcoming_trains: arrivals,
-            big_countdown: Some(wait_string.to_string()),
+            big_countdown: Some(countdown_summary(now, first_arrival))
         });
     }
 }
@@ -216,21 +225,28 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
     let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Black.ttf") as &[u8]);
     let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
 
-    let scale50x50 = rusttype::Scale { x: 50.0, y: 50.0 };
-    let scale150x150 = rusttype::Scale { x: 150.0, y: 150.0 };
+    let color_black = image::Luma{data: [0u8; 1]};
+    let color_white = image::Luma{data: [255u8; 1]};
     
-    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), image::Luma{data: [255u8; 1]});
-    imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 10, scale50x50, &font, "Cristina is pretty");
+    let scale50 = rusttype::Scale { x: 50.0, y: 50.0 };
+    let bignum_scale = rusttype::Scale { x: 250.0, y: 250.0 };
+    
+    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), color_white);
+    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 10, scale50, &font, "Cristina is pretty");
 
     use chrono::TimeZone;
-    let next_arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[0], 0);
-    let next_arrival_formatted = next_arrival.format("%Y-%m-%d %H:%M:%S").to_string();
-    imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 50, scale50x50, &font, &next_arrival_formatted);
 
     match data.big_countdown {
-        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, image::Luma{data: [0u8; 1]}, 10, 100, scale150x150, &font_black, big_text),
+        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 20, bignum_scale, &font_black, big_text),
         _ => {},
     }
+
+    for i in 0..std::cmp::min(data.upcoming_trains.len(), 3) {
+        let arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[i], 0);
+        let arrival_formatted = arrival.format("%-I:%M").to_string();
+        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 250 + 40 * i as u32, scale50, &font, &arrival_formatted);
+    }
+
     
     return Ok(imgbuf);
 }
@@ -252,20 +268,42 @@ fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>
 }
 
 fn main() {
-    let args: Vec<_> = std::env::args().collect();
-    let display = args.len() == 1 || args[1] != "nopi";
-    println!("Running. display={}", display);
+    let args: Vec<String> = std::env::args().collect();
+    let mut opts = getopts::Options::new();
+    opts.optflag("d", "skip-display", "display to the epd device");
+    opts.optflag("o", "one-shot", "keep the display up to date");
 
-    let raw_data = fetch_data().expect("fetch data");
-    println!("RESPONSE: {:?}", raw_data);
+    let matches = opts.parse(&args[1..]).expect("parse opts");
 
-    let processed_data = process_data(&raw_data).expect("process data");
-    let imgbuf = generate_image(&processed_data).expect("generate image");
+    let display = !matches.opt_present("skip-display");
+    let one_shot = matches.opt_present("one-shot");
+    println!("Running. display={} one-shot={}", display, one_shot);
 
+    let mut prev_processed_data = ProcessedData::empty();
+    
+    loop {
+        let raw_data = fetch_data().expect("fetch data");
+        let processed_data = process_data(&raw_data).expect("process data");
+        let imgbuf = generate_image(&processed_data).expect("generate image");
 
-    let _ = imgbuf.save("/tmp/image.png").unwrap();
+        let _ = imgbuf.save("/tmp/image.png").unwrap();
 
-    if display {
-        setup_and_display_image(&imgbuf).expect("display image");
+        if prev_processed_data.big_countdown != processed_data.big_countdown {
+            println!("Updating bignum {:?} -> {:?}",
+                     prev_processed_data.big_countdown,
+                     processed_data.big_countdown);
+            if display {
+                setup_and_display_image(&imgbuf).expect("display image");
+            }
+        } else {
+            println!("Big num didn't change, not refreshing");
+            std::thread::sleep(std::time::Duration::from_secs(5));
+        }
+
+        if one_shot {
+            break;
+        }
+
+        prev_processed_data = processed_data;
     }
 }
