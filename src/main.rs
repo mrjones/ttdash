@@ -227,12 +227,13 @@ fn scale(s: f32) -> rusttype::Scale {
     return rusttype::Scale{x: s, y: s};
 }
 
+
 fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_WIDTH as u32);
     let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
     let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
 
-    let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Black.ttf") as &[u8]);
+    let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf") as &[u8]);
     let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
 
     let font_bold = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Bold.ttf") as &[u8]);
@@ -257,7 +258,10 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
     use chrono::TimeZone;
 
     match data.big_countdown {
-        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 55, bignum_scale, &font_black, big_text),
+        Some(ref big_text) => {
+            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 55, bignum_scale, &font_black, big_text);
+
+        },
         _ => {},
     }
 
