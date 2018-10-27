@@ -214,13 +214,17 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
     } else {
         arrivals.sort();
         let first_arrival = arrivals[0];
-        
+
         return Ok(ProcessedData{
             upcoming_trains: arrivals,
             big_countdown: Some(countdown_summary(now, first_arrival)),
             station_name: data.get_name().to_string(),
         });
     }
+}
+
+fn scale(s: f32) -> rusttype::Scale {
+    return rusttype::Scale{x: s, y: s};
 }
 
 fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
@@ -236,7 +240,7 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
 
     let color_black = image::Luma{data: [0u8; 1]};
     let color_white = image::Luma{data: [255u8; 1]};
-    
+
     let scale40 = rusttype::Scale { x: 40.0, y: 40.0 };
     let scale50 = rusttype::Scale { x: 50.0, y: 50.0 };
     let bignum_scale = rusttype::Scale { x: 250.0, y: 250.0 };
@@ -244,22 +248,23 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
     // Flipped since we'll rotate
     imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_HEIGHT as u32, EPD_WIDTH as u32), color_white);
 
-    let header_text = format!("{} / Manhattan / R", data.station_name);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 10, scale40, &font_bold, &header_text);
+//    let header_text = format!("Manhattan / R", data.station_name);
+    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 10, scale(50.0), &font_bold, &data.station_name);
+    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 50, scale40, &font, "R / Manhattan");
 
-    imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (10.0, 55.0), (EPD_HEIGHT as f32 - 10.0, 55.0), color_black);
-    
+    imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (10.0, 95.0), (EPD_HEIGHT as f32 - 10.0, 95.0), color_black);
+
     use chrono::TimeZone;
 
     match data.big_countdown {
-        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 15, bignum_scale, &font_black, big_text),
+        Some(ref big_text) => imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 55, bignum_scale, &font_black, big_text),
         _ => {},
     }
 
-    for i in 0..std::cmp::min(data.upcoming_trains.len(), 3) {
+    for i in 0..std::cmp::min(data.upcoming_trains.len(), 5) {
         let arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[i], 0);
         let arrival_formatted = arrival.format("%-I:%M").to_string();
-        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 100, 60 + 40 * i as u32, scale50, &font, &arrival_formatted);
+        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 100, 100 + 40 * i as u32, scale50, &font, &arrival_formatted);
     }
 
     let mut rotated = imageproc::affine::rotate(&imgbuf, (EPD_HEIGHT as f32 / 2.0 as f32, EPD_HEIGHT as f32 / 2.0), (270 as f32).to_radians(), imageproc::affine::Interpolation::Bilinear);
@@ -288,21 +293,25 @@ fn main() {
     let mut opts = getopts::Options::new();
     opts.optflag("d", "skip-display", "display to the epd device");
     opts.optflag("o", "one-shot", "keep the display up to date");
+    opts.optopt("i", "save-image", "Where to put a png.", "FILENAME");
 
     let matches = opts.parse(&args[1..]).expect("parse opts");
 
     let display = !matches.opt_present("skip-display");
     let one_shot = matches.opt_present("one-shot");
+
     println!("Running. display={} one-shot={}", display, one_shot);
 
     let mut prev_processed_data = ProcessedData::empty();
-    
+
     loop {
         let raw_data = fetch_data().expect("fetch data");
         let processed_data = process_data(&raw_data).expect("process data");
         let imgbuf = generate_image(&processed_data).expect("generate image");
 
-        let _ = imgbuf.save("/tmp/image.png").unwrap();
+        if matches.opt_present("save-image") {
+            let _ = imgbuf.save(matches.opt_str("save-image").unwrap()).unwrap();
+        }
 
         if prev_processed_data.big_countdown != processed_data.big_countdown {
             println!("Updating bignum {:?} -> {:?}",
