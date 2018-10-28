@@ -284,19 +284,43 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
 }
 
 fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
-    let mut gpio = rppal::gpio::Gpio::new().expect("Gpio::new()");
+    let mut gpio = rppal::gpio::Gpio::new()?;
 
     // Don't forget to enable SPI with sudo raspi-config
     let mut spi = rppal::spi::Spi::new(
         rppal::spi::Bus::Spi0,
         rppal::spi::SlaveSelect::Ss0,
         2000000,
-        rppal::spi::Mode::Mode0).expect("Spi::new()");
+        rppal::spi::Mode::Mode0)?;
 
     init_display(&mut gpio, &mut spi);
     display_image(&mut gpio, &mut spi, image);
 
     return Ok(());
+}
+
+fn one_iteration(display: bool, png_out: Option<String>, prev_processed_data: &ProcessedData) -> result::TTDashResult<ProcessedData>{
+    let raw_data = fetch_data()?;
+    let processed_data = process_data(&raw_data)?;
+    let imgbuf = generate_image(&processed_data)?;
+
+    if png_out.is_some() {
+        let _ = imgbuf.save(png_out.unwrap())?;
+    }
+
+    if prev_processed_data.big_countdown != processed_data.big_countdown {
+        println!("Updating bignum {:?} -> {:?}",
+                 prev_processed_data.big_countdown,
+                 processed_data.big_countdown);
+        if display {
+            setup_and_display_image(&imgbuf)?;
+        }
+    } else {
+        println!("Big num didn't change, not refreshing");
+        std::thread::sleep(std::time::Duration::from_secs(5));
+    }
+
+    return Ok(processed_data);
 }
 
 fn main() {
@@ -316,30 +340,13 @@ fn main() {
     let mut prev_processed_data = ProcessedData::empty();
 
     loop {
-        let raw_data = fetch_data().expect("fetch data");
-        let processed_data = process_data(&raw_data).expect("process data");
-        let imgbuf = generate_image(&processed_data).expect("generate image");
-
-        if matches.opt_present("save-image") {
-            let _ = imgbuf.save(matches.opt_str("save-image").unwrap()).unwrap();
-        }
-
-        if prev_processed_data.big_countdown != processed_data.big_countdown {
-            println!("Updating bignum {:?} -> {:?}",
-                     prev_processed_data.big_countdown,
-                     processed_data.big_countdown);
-            if display {
-                setup_and_display_image(&imgbuf).expect("display image");
-            }
-        } else {
-            println!("Big num didn't change, not refreshing");
-            std::thread::sleep(std::time::Duration::from_secs(5));
+        match one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
+            Err(err) => eprintln!("{}", err),
+            Ok(processed_data) => prev_processed_data = processed_data,
         }
 
         if one_shot {
             break;
         }
-
-        prev_processed_data = processed_data;
     }
 }
