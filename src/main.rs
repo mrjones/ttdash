@@ -188,10 +188,6 @@ fn countdown_summary(now_ts: i64, arrival_ts: i64) -> String {
 
     if wait_seconds < 60 {
         return "<1".to_string();
-    } else if wait_seconds < 120 {
-        return "1-2".to_string();
-    } else if wait_seconds < 180 {
-        return "2-3".to_string();
     }
     return format!("{}", wait_seconds / 60);
 }
@@ -229,7 +225,7 @@ fn scale(s: f32) -> rusttype::Scale {
 
 
 fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
-    let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_WIDTH as u32);
+    let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
     let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
     let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
 
@@ -246,12 +242,13 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
     let scale50 = rusttype::Scale { x: 50.0, y: 50.0 };
     let bignum_scale = rusttype::Scale { x: 250.0, y: 250.0 };
 
-    // Flipped since we'll rotate
-    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_HEIGHT as u32, EPD_WIDTH as u32), color_white);
+    let now = chrono::Utc::now().timestamp();
+
+    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), color_white);
 
 //    let header_text = format!("Manhattan / R", data.station_name);
     imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 10, scale(50.0), &font_bold, &data.station_name);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 50, scale40, &font, "R / Manhattan");
+    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 50, scale40, &font, "R to Manhattan");
 
     imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (10.0, 95.0), (EPD_HEIGHT as f32 - 10.0, 95.0), color_black);
 
@@ -259,21 +256,31 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
 
     match data.big_countdown {
         Some(ref big_text) => {
-            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 55, bignum_scale, &font_black, big_text);
+            let x;
+            if big_text.len() == 1 {
+                x = 70;
+            } else {
+                x = 10;
+            }
+            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, x, 55, bignum_scale, &font_black, big_text);
 
         },
         _ => {},
     }
 
     for i in 0..std::cmp::min(data.upcoming_trains.len(), 5) {
+        let countdown = countdown_summary(now, data.upcoming_trains[i]);
         let arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[i], 0);
         let arrival_formatted = arrival.format("%-I:%M").to_string();
-        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 100, 100 + 40 * i as u32, scale50, &font, &arrival_formatted);
+        let y = 100 + 40 * i as u32;
+
+        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 100, y, scale50, &font, &arrival_formatted);
+        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 165, y, scale50, &font_bold, &countdown);
     }
 
-    let mut rotated = imageproc::affine::rotate(&imgbuf, (EPD_HEIGHT as f32 / 2.0 as f32, EPD_HEIGHT as f32 / 2.0), (270 as f32).to_radians(), imageproc::affine::Interpolation::Bilinear);
+//    let mut rotated = imageproc::affine::rotate(&imgbuf, (EPD_HEIGHT as f32 / 2.0 as f32, EPD_HEIGHT as f32 / 2.0), (270 as f32).to_radians(), imageproc::affine::Interpolation::Bilinear);
 
-    return Ok(image::imageops::crop(&mut rotated, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
+    return Ok(image::imageops::crop(&mut imgbuf, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
 }
 
 fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
