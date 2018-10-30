@@ -8,8 +8,11 @@ extern crate protobuf;
 extern crate reqwest;
 extern crate rppal;
 extern crate rusttype;
+#[macro_use]
+extern crate serde_derive;
 
 mod result;
+mod weather;
 mod webclient_api;
 
 use rppal::gpio::{Gpio, Level, Mode};
@@ -224,7 +227,7 @@ fn scale(s: f32) -> rusttype::Scale {
 }
 
 
-fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage> {
+fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
     let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
     let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
@@ -278,6 +281,72 @@ fn generate_image(data: &ProcessedData) -> result::TTDashResult<image::GrayImage
         imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 165, y, scale50, &font_bold, &countdown);
     }
 
+
+    if hourly_forecast.is_some() {
+        let hourly_forecast = hourly_forecast.unwrap();
+        let weather_x = 460.0;
+        let weather_y = 350.0;
+        let weather_width = 170.0;
+        let weather_height = 100.0;
+
+        let min_t = hourly_forecast.iter()
+            .take(24)
+            .map(|x| x.temperature)
+            .min()
+            .unwrap_or(1);
+        let max_t = hourly_forecast.iter()
+            .take(24)
+            .map(|x| x.temperature)
+            .max()
+            .unwrap_or(1);
+
+        let x_step = weather_width / 24.0;
+
+        let mut x = weather_x;
+        let mut last_x = None;
+        let mut last_y = None;
+
+        let mut last_t = None;
+        let mut trending_up = None;
+
+        for hour in hourly_forecast.iter().take(24) {
+            let y_fraction = (hour.temperature - min_t) as f32 / (max_t - min_t) as f32;
+            let y = weather_y - (y_fraction * weather_height);
+            if last_x.is_some() && last_y.is_some() {
+                imageproc::drawing::draw_line_segment_mut(
+                    &mut imgbuf, (last_x.unwrap(), last_y.unwrap()), (x, y), color_black);
+            }
+
+            if last_t.is_none() {
+                imageproc::drawing::draw_text_mut(
+                    &mut imgbuf, color_black, (x - 40.0) as u32, (y - 10.0) as u32, scale(30.0), &font, format!("{}°", hour.temperature).as_ref());
+            }
+
+            if last_t.is_some() {
+                let last_t = last_t.unwrap();
+                if hour.temperature < last_t {
+                    if trending_up == Some(true) {
+                        imageproc::drawing::draw_text_mut(
+                            &mut imgbuf, color_black, (x - x_step) as u32, (weather_y - weather_height - 30.0) as u32, scale(30.0), &font, format!("{}°", last_t).as_ref());
+                    }
+                    trending_up = Some(false);
+                } else if hour.temperature > last_t {
+                    if trending_up == Some(false) {
+                        imageproc::drawing::draw_text_mut(
+                            &mut imgbuf, color_black, (x - x_step) as u32, (weather_y) as u32, scale(30.0), &font, format!("{}°", last_t).as_ref());
+                    }
+                    trending_up = Some(true);
+                }
+            }
+
+            last_t = Some(hour.temperature);
+            last_x = Some(x);
+            last_y = Some(y);
+
+            x = x + x_step;
+        }
+    }
+
 //    let mut rotated = imageproc::affine::rotate(&imgbuf, (EPD_HEIGHT as f32 / 2.0 as f32, EPD_HEIGHT as f32 / 2.0), (270 as f32).to_radians(), imageproc::affine::Interpolation::Bilinear);
 
     return Ok(image::imageops::crop(&mut imgbuf, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
@@ -299,28 +368,45 @@ fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>
     return Ok(());
 }
 
-fn one_iteration(display: bool, png_out: Option<String>, prev_processed_data: &ProcessedData) -> result::TTDashResult<ProcessedData>{
-    let raw_data = fetch_data()?;
-    let processed_data = process_data(&raw_data)?;
-    let imgbuf = generate_image(&processed_data)?;
+struct TTDash {
+    hourly_forecast: Option<Vec<weather::HourlyForecast>>,
+    forecast_timestamp: chrono::DateTime<chrono::Utc>,
+}
 
-    if png_out.is_some() {
-        let _ = imgbuf.save(png_out.unwrap())?;
-    }
+impl TTDash {
+    fn one_iteration(&mut self, display: bool, png_out: Option<String>, prev_processed_data: &ProcessedData) -> result::TTDashResult<ProcessedData>{
+        let raw_data = fetch_data()?;
+        let processed_data = process_data(&raw_data)?;
 
-    if prev_processed_data.big_countdown != processed_data.big_countdown {
-        println!("Updating bignum {:?} -> {:?}",
-                 prev_processed_data.big_countdown,
-                 processed_data.big_countdown);
-        if display {
-            setup_and_display_image(&imgbuf)?;
+        // TODO(mrjones): Make this async or something?
+        // TODO(mrjones): Don't fetch every time
+        let now = chrono::Utc::now();
+        if self.hourly_forecast.is_none() || (now.timestamp() - self.forecast_timestamp.timestamp() > 60 * 30) {
+            println!("Fetching weather forecast");
+            self.hourly_forecast = Some(weather::fetch_hourly_forecast()?);
+            self.forecast_timestamp = now;
         }
-    } else {
-        println!("Big num didn't change, not refreshing");
-        std::thread::sleep(std::time::Duration::from_secs(5));
-    }
 
-    return Ok(processed_data);
+        let imgbuf = generate_image(&processed_data, self.hourly_forecast.as_ref())?;
+
+        if png_out.is_some() {
+            let _ = imgbuf.save(png_out.unwrap())?;
+        }
+
+        if prev_processed_data.big_countdown != processed_data.big_countdown {
+            println!("Updating bignum {:?} -> {:?}",
+                     prev_processed_data.big_countdown,
+                     processed_data.big_countdown);
+            if display {
+                setup_and_display_image(&imgbuf)?;
+            }
+        } else {
+            println!("Big num didn't change, not refreshing");
+            std::thread::sleep(std::time::Duration::from_secs(5));
+        }
+
+        return Ok(processed_data);
+    }
 }
 
 fn main() {
@@ -338,9 +424,13 @@ fn main() {
     println!("Running. display={} one-shot={}", display, one_shot);
 
     let mut prev_processed_data = ProcessedData::empty();
+    let mut ttdash = TTDash{
+        forecast_timestamp: chrono::Utc::now(),
+        hourly_forecast: None,
+    };
 
     loop {
-        match one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
+        match ttdash.one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
             Err(err) => eprintln!("{}", err),
             Ok(processed_data) => prev_processed_data = processed_data,
         }

@@ -1,3 +1,4 @@
+extern crate chrono;
 extern crate protobuf;
 extern crate reqwest;
 extern crate rppal;
@@ -7,6 +8,7 @@ pub type TTDashResult<T> = std::result::Result<T, TTDashError>;
 
 #[derive(Debug)]
 pub enum TTDashError {
+    ChronoParseError(chrono::ParseError),
     GpioError(rppal::gpio::Error),
     HttpError(reqwest::Error),
     IoError(std::io::Error),
@@ -17,6 +19,9 @@ pub enum TTDashError {
 impl std::fmt::Display for TTDashError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
+            TTDashError::ChronoParseError(ref err) => {
+                return write!(f, "Chrono Parse Error: {}", err);
+            },
             TTDashError::GpioError(ref err) => {
                 return write!(f, "GPIO Error: {}", err);
             },
@@ -39,6 +44,7 @@ impl std::fmt::Display for TTDashError {
 impl std::error::Error for TTDashError {
     fn description(&self) -> &str {
         match *self {
+            TTDashError::ChronoParseError(_) => "ChronoParseError",
             TTDashError::GpioError(_) => "GpioError",
             TTDashError::HttpError(_) => "HttpError",
             TTDashError::IoError(_) => "IoError",
@@ -49,6 +55,12 @@ impl std::error::Error for TTDashError {
 
     fn cause(&self) -> Option<&std::error::Error> {
         return None
+    }
+}
+
+impl From<chrono::ParseError> for TTDashError {
+    fn from(err: chrono::ParseError) -> TTDashError {
+        return TTDashError::ChronoParseError(err);
     }
 }
 
