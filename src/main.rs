@@ -227,7 +227,7 @@ fn scale(s: f32) -> rusttype::Scale {
 }
 
 
-fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>) -> result::TTDashResult<image::GrayImage> {
+fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
     let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
     let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
@@ -281,13 +281,30 @@ fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::Ho
         imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 165, y, scale50, &font_bold, &countdown);
     }
 
+    if daily_forecast.is_some() {
+        let daily_forecast: &Vec<weather::DailyForecast> = daily_forecast.unwrap();
+
+        let weather_x = 400;
+        let weather_y = 150;
+
+        let y_step = 80;
+        let mut y = weather_y;
+        for ref day in daily_forecast.iter().take(3) {
+            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, weather_x, y, scale(30.0), &font_bold, &day.label);
+            imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (weather_x as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), color_black);
+            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, weather_x, y + 35, scale(30.0), &font_bold, format!("{}°", day.temperature).as_ref());
+            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, weather_x + 45, y + 35, scale(30.0), &font, &day.short_forecast);
+            y = y + y_step;
+        }
+    }
+
 
     if hourly_forecast.is_some() {
         let hourly_forecast = hourly_forecast.unwrap();
-        let weather_x = 460.0;
-        let weather_y = 350.0;
+        let weather_x = 440.0;
+        let weather_y = 110.0;  // Note: This is the _bottom_
         let weather_width = 170.0;
-        let weather_height = 100.0;
+        let weather_height = 70.0;
 
         let min_t = hourly_forecast.iter()
             .take(24)
@@ -369,6 +386,7 @@ fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>
 }
 
 struct TTDash {
+    daily_forecast: Option<Vec<weather::DailyForecast>>,
     hourly_forecast: Option<Vec<weather::HourlyForecast>>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
 }
@@ -384,10 +402,14 @@ impl TTDash {
         if self.hourly_forecast.is_none() || (now.timestamp() - self.forecast_timestamp.timestamp() > 60 * 30) {
             println!("Fetching weather forecast");
             self.hourly_forecast = Some(weather::fetch_hourly_forecast()?);
+            self.daily_forecast = Some(weather::fetch_daily_forecast()?);
             self.forecast_timestamp = now;
         }
 
-        let imgbuf = generate_image(&processed_data, self.hourly_forecast.as_ref())?;
+        let imgbuf = generate_image(
+            &processed_data,
+            self.hourly_forecast.as_ref(),
+            self.daily_forecast.as_ref())?;
 
         if png_out.is_some() {
             let _ = imgbuf.save(png_out.unwrap())?;
@@ -427,6 +449,7 @@ fn main() {
     let mut ttdash = TTDash{
         forecast_timestamp: chrono::Utc::now(),
         hourly_forecast: None,
+        daily_forecast: None,
     };
 
     loop {
