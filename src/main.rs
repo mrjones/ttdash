@@ -271,7 +271,7 @@ fn draw_daily_forecast(imgbuf: &mut image::GrayImage, styles: &Styles, daily_for
     let y_step = 80;
     let mut y = weather_y;
     for ref day in daily_forecast.iter().take(3) {
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y + 10, scale(40.0), &styles.font_bold, format!("{}°", day.temperature).as_ref());
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y + 5, scale(45.0), &styles.font_black, format!("{}°", day.temperature).as_ref());
 
         imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x + 55, y, scale(30.0), &styles.font_bold, &day.label);
 //        imageproc::drawing::draw_line_segment_mut(imgbuf, ((weather_x + 55) as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), styles.color_black);
