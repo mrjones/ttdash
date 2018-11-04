@@ -53,9 +53,9 @@ pub fn fetch_daily_forecast() -> result::TTDashResult<Vec<DailyForecast>> {
 
     let mut response = reqwest::get(&url)?;
     let mut response_body = String::new();
-    response.read_to_string(&mut response_body).expect("Response parse");
+    response.read_to_string(&mut response_body)?;
 
-    let forecast: NwsApiForecast = serde_json::from_str(&response_body).expect("JSON parse");
+    let forecast: NwsApiForecast = serde_json::from_str(&response_body)?;
 
     let mut result = vec![];
     for period in forecast.properties.periods {
@@ -76,9 +76,9 @@ pub fn fetch_hourly_forecast() -> result::TTDashResult<Vec<HourlyForecast>> {
 
     let mut response = reqwest::get(&url)?;
     let mut response_body = String::new();
-    response.read_to_string(&mut response_body).expect("Response parse");
+    response.read_to_string(&mut response_body)?;
 
-    let forecast: NwsApiForecast = serde_json::from_str(&response_body).expect("JSON parse");
+    let forecast: NwsApiForecast = serde_json::from_str(&response_body)?;
 
     let mut result = vec![];
     for period in forecast.properties.periods {

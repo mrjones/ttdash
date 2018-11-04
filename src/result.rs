@@ -2,6 +2,7 @@ extern crate chrono;
 extern crate protobuf;
 extern crate reqwest;
 extern crate rppal;
+extern crate serde_json;
 extern crate std;
 
 pub type TTDashResult<T> = std::result::Result<T, TTDashError>;
@@ -12,6 +13,7 @@ pub enum TTDashError {
     GpioError(rppal::gpio::Error),
     HttpError(reqwest::Error),
     IoError(std::io::Error),
+    JsonError(serde_json::Error),
     ProtobufError(protobuf::ProtobufError),
     SpiError(rppal::spi::Error),
 }
@@ -31,6 +33,9 @@ impl std::fmt::Display for TTDashError {
             TTDashError::IoError(ref err) => {
                 return write!(f, "IO Error: {}", err);
             },
+            TTDashError::JsonError(ref err) => {
+                return write!(f, "JSON Error: {}", err);
+            },
             TTDashError::ProtobufError(ref err) => {
                 return write!(f, "Protobuf Error: {}", err);
             },
@@ -48,6 +53,7 @@ impl std::error::Error for TTDashError {
             TTDashError::GpioError(_) => "GpioError",
             TTDashError::HttpError(_) => "HttpError",
             TTDashError::IoError(_) => "IoError",
+            TTDashError::JsonError(_) => "JsonError",
             TTDashError::ProtobufError(_) => "ProtobufError",
             TTDashError::SpiError(_) => "SpiError",
         }
@@ -79,6 +85,12 @@ impl From<reqwest::Error> for TTDashError {
 impl From<std::io::Error> for TTDashError {
     fn from(err: std::io::Error) -> TTDashError {
         return TTDashError::IoError(err);
+    }
+}
+
+impl From<serde_json::Error> for TTDashError {
+    fn from(err: serde_json::Error) -> TTDashError {
+        return TTDashError::JsonError(err);
     }
 }
 
