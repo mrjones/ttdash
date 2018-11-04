@@ -226,6 +226,21 @@ fn scale(s: f32) -> rusttype::Scale {
     return rusttype::Scale{x: s, y: s};
 }
 
+fn draw_daily_forecast(imgbuf: &mut image::GrayImage, styles: &Styles, daily_forecast: &Vec<weather::DailyForecast>) {
+    let weather_x = 400;
+    let weather_y = 150;
+
+    let y_step = 80;
+    let mut y = weather_y;
+    for ref day in daily_forecast.iter().take(3) {
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y, scale(30.0), &styles.font_bold, &day.label);
+        imageproc::drawing::draw_line_segment_mut(imgbuf, (weather_x as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), styles.color_black);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y + 35, scale(30.0), &styles.font_bold, format!("{}°", day.temperature).as_ref());
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x + 45, y + 35, scale(30.0), &styles.font, &day.short_forecast);
+        y = y + y_step;
+    }
+}
+
 fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_forecast: &Vec<weather::HourlyForecast>) {
     let weather_x = 440.0;
     let weather_y = 110.0;  // Note: This is the _bottom_
@@ -330,20 +345,7 @@ fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::Ho
     }
 
     if daily_forecast.is_some() {
-        let daily_forecast: &Vec<weather::DailyForecast> = daily_forecast.unwrap();
-
-        let weather_x = 400;
-        let weather_y = 150;
-
-        let y_step = 80;
-        let mut y = weather_y;
-        for ref day in daily_forecast.iter().take(3) {
-            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, weather_x, y, scale(30.0), &styles.font_bold, &day.label);
-            imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (weather_x as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), styles.color_black);
-            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, weather_x, y + 35, scale(30.0), &styles.font_bold, format!("{}°", day.temperature).as_ref());
-            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, weather_x + 45, y + 35, scale(30.0), &styles.font, &day.short_forecast);
-            y = y + y_step;
-        }
+        draw_daily_forecast(&mut imgbuf, styles, daily_forecast.unwrap());
     }
 
 
