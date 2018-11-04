@@ -265,18 +265,26 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &P
 }
 
 fn draw_daily_forecast(imgbuf: &mut image::GrayImage, styles: &Styles, daily_forecast: &Vec<weather::DailyForecast>) {
-    let weather_x = 400;
+    let weather_x = 390;
     let weather_y = 150;
 
     let y_step = 80;
     let mut y = weather_y;
     for ref day in daily_forecast.iter().take(3) {
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y, scale(30.0), &styles.font_bold, &day.label);
-        imageproc::drawing::draw_line_segment_mut(imgbuf, (weather_x as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), styles.color_black);
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y + 35, scale(30.0), &styles.font_bold, format!("{}°", day.temperature).as_ref());
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x + 45, y + 35, scale(30.0), &styles.font, &day.short_forecast);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y + 10, scale(40.0), &styles.font_bold, format!("{}°", day.temperature).as_ref());
+
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x + 55, y, scale(30.0), &styles.font_bold, &day.label);
+//        imageproc::drawing::draw_line_segment_mut(imgbuf, ((weather_x + 55) as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), styles.color_black);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x + 55, y + 25, scale(30.0), &styles.font, &day.short_forecast);
         y = y + y_step;
     }
+}
+
+fn draw_big_current_temperature(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_forecast: &Vec<weather::HourlyForecast>) {
+    let temp_str = hourly_forecast.first()
+        .map(|hr| format!("{}°", hr.temperature))
+        .unwrap_or("-".to_string());
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 440, 0, scale(140.0), &styles.font_black, &temp_str);
 }
 
 fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_forecast: &Vec<weather::HourlyForecast>) {
@@ -353,8 +361,14 @@ fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::Ho
     }
 
     if hourly_forecast.is_some() {
+        draw_big_current_temperature(&mut imgbuf, styles, hourly_forecast.unwrap());
+    }
+
+    /*
+    if hourly_forecast.is_some() {
         draw_hourly_trend(&mut imgbuf, styles, hourly_forecast.unwrap());
     }
+    */
 
     return Ok(image::imageops::crop(&mut imgbuf, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
 }
