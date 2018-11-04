@@ -226,34 +226,82 @@ fn scale(s: f32) -> rusttype::Scale {
     return rusttype::Scale{x: s, y: s};
 }
 
+fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_forecast: &Vec<weather::HourlyForecast>) {
+    let weather_x = 440.0;
+    let weather_y = 110.0;  // Note: This is the _bottom_
+    let weather_width = 170.0;
+    let weather_height = 70.0;
 
-fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>) -> result::TTDashResult<image::GrayImage> {
+    let min_t = hourly_forecast.iter()
+        .take(24)
+        .map(|x| x.temperature)
+        .min()
+        .unwrap_or(1);
+    let max_t = hourly_forecast.iter()
+        .take(24)
+        .map(|x| x.temperature)
+        .max()
+        .unwrap_or(1);
+
+    let x_step = weather_width / 24.0;
+
+    let mut x = weather_x;
+    let mut last_x = None;
+    let mut last_y = None;
+
+    let mut last_t = None;
+    let mut trending_up = None;
+
+    for hour in hourly_forecast.iter().take(24) {
+        let y_fraction = (hour.temperature - min_t) as f32 / (max_t - min_t) as f32;
+        let y = weather_y - (y_fraction * weather_height);
+        if last_x.is_some() && last_y.is_some() {
+            imageproc::drawing::draw_line_segment_mut(
+                imgbuf, (last_x.unwrap(), last_y.unwrap()), (x, y), styles.color_black);
+        }
+
+        if last_t.is_none() {
+            imageproc::drawing::draw_text_mut(
+                imgbuf, styles.color_black, (x - 40.0) as u32, (y - 10.0) as u32, scale(30.0), &styles.font, format!("{}°", hour.temperature).as_ref());
+        }
+
+        if last_t.is_some() {
+            let last_t = last_t.unwrap();
+            if hour.temperature < last_t {
+                if trending_up == Some(true) {
+                    imageproc::drawing::draw_text_mut(
+                        imgbuf, styles.color_black, (x - x_step) as u32, (weather_y - weather_height - 30.0) as u32, scale(30.0), &styles.font, format!("{}°", last_t).as_ref());
+                }
+                trending_up = Some(false);
+            } else if hour.temperature > last_t {
+                if trending_up == Some(false) {
+                    imageproc::drawing::draw_text_mut(
+                        imgbuf, styles.color_black, (x - x_step) as u32, (weather_y) as u32, scale(30.0), &styles.font, format!("{}°", last_t).as_ref());
+                }
+                trending_up = Some(true);
+            }
+        }
+
+        last_t = Some(hour.temperature);
+        last_x = Some(x);
+        last_y = Some(y);
+
+        x = x + x_step;
+    }
+}
+
+fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
-    let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
-    let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
-
-    let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf") as &[u8]);
-    let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
-
-    let font_bold = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Bold.ttf") as &[u8]);
-    let font_bold = rusttype::FontCollection::from_bytes(font_bold).unwrap().into_font().unwrap();
-
-    let color_black = image::Luma{data: [0u8; 1]};
-    let color_white = image::Luma{data: [255u8; 1]};
-
-    let scale40 = rusttype::Scale { x: 40.0, y: 40.0 };
-    let scale50 = rusttype::Scale { x: 50.0, y: 50.0 };
-    let bignum_scale = rusttype::Scale { x: 250.0, y: 250.0 };
 
     let now = chrono::Utc::now().timestamp();
 
-    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), color_white);
+    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);
 
 //    let header_text = format!("Manhattan / R", data.station_name);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 10, scale(50.0), &font_bold, &data.station_name);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, 10, 50, scale40, &font, "R to Manhattan");
+    imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, 10, 10, scale(50.0), &styles.font_bold, &data.station_name);
+    imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, 10, 50, scale(40.0), &styles.font, "R to Manhattan");
 
-    imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (10.0, 95.0), (EPD_HEIGHT as f32 - 10.0, 95.0), color_black);
+    imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (10.0, 95.0), (EPD_HEIGHT as f32 - 10.0, 95.0), styles.color_black);
 
     use chrono::TimeZone;
 
@@ -265,7 +313,7 @@ fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::Ho
             } else {
                 x = 10;
             }
-            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, x, 55, bignum_scale, &font_black, big_text);
+            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, x, 55, scale(250.0), &styles.font_black, big_text);
 
         },
         _ => {},
@@ -277,8 +325,8 @@ fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::Ho
         let arrival_formatted = arrival.format("%-I:%M").to_string();
         let y = 100 + 40 * i as u32;
 
-        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 100, y, scale50, &font, &arrival_formatted);
-        imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, EPD_HEIGHT as u32 - 165, y, scale50, &font_bold, &countdown);
+        imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, EPD_HEIGHT as u32 - 100, y, scale(50.0), &styles.font, &arrival_formatted);
+        imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, EPD_HEIGHT as u32 - 165, y, scale(50.0), &styles.font_bold, &countdown);
     }
 
     if daily_forecast.is_some() {
@@ -290,78 +338,17 @@ fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::Ho
         let y_step = 80;
         let mut y = weather_y;
         for ref day in daily_forecast.iter().take(3) {
-            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, weather_x, y, scale(30.0), &font_bold, &day.label);
-            imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (weather_x as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), color_black);
-            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, weather_x, y + 35, scale(30.0), &font_bold, format!("{}°", day.temperature).as_ref());
-            imageproc::drawing::draw_text_mut(&mut imgbuf, color_black, weather_x + 45, y + 35, scale(30.0), &font, &day.short_forecast);
+            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, weather_x, y, scale(30.0), &styles.font_bold, &day.label);
+            imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (weather_x as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), styles.color_black);
+            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, weather_x, y + 35, scale(30.0), &styles.font_bold, format!("{}°", day.temperature).as_ref());
+            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, weather_x + 45, y + 35, scale(30.0), &styles.font, &day.short_forecast);
             y = y + y_step;
         }
     }
 
 
     if hourly_forecast.is_some() {
-        let hourly_forecast = hourly_forecast.unwrap();
-        let weather_x = 440.0;
-        let weather_y = 110.0;  // Note: This is the _bottom_
-        let weather_width = 170.0;
-        let weather_height = 70.0;
-
-        let min_t = hourly_forecast.iter()
-            .take(24)
-            .map(|x| x.temperature)
-            .min()
-            .unwrap_or(1);
-        let max_t = hourly_forecast.iter()
-            .take(24)
-            .map(|x| x.temperature)
-            .max()
-            .unwrap_or(1);
-
-        let x_step = weather_width / 24.0;
-
-        let mut x = weather_x;
-        let mut last_x = None;
-        let mut last_y = None;
-
-        let mut last_t = None;
-        let mut trending_up = None;
-
-        for hour in hourly_forecast.iter().take(24) {
-            let y_fraction = (hour.temperature - min_t) as f32 / (max_t - min_t) as f32;
-            let y = weather_y - (y_fraction * weather_height);
-            if last_x.is_some() && last_y.is_some() {
-                imageproc::drawing::draw_line_segment_mut(
-                    &mut imgbuf, (last_x.unwrap(), last_y.unwrap()), (x, y), color_black);
-            }
-
-            if last_t.is_none() {
-                imageproc::drawing::draw_text_mut(
-                    &mut imgbuf, color_black, (x - 40.0) as u32, (y - 10.0) as u32, scale(30.0), &font, format!("{}°", hour.temperature).as_ref());
-            }
-
-            if last_t.is_some() {
-                let last_t = last_t.unwrap();
-                if hour.temperature < last_t {
-                    if trending_up == Some(true) {
-                        imageproc::drawing::draw_text_mut(
-                            &mut imgbuf, color_black, (x - x_step) as u32, (weather_y - weather_height - 30.0) as u32, scale(30.0), &font, format!("{}°", last_t).as_ref());
-                    }
-                    trending_up = Some(false);
-                } else if hour.temperature > last_t {
-                    if trending_up == Some(false) {
-                        imageproc::drawing::draw_text_mut(
-                            &mut imgbuf, color_black, (x - x_step) as u32, (weather_y) as u32, scale(30.0), &font, format!("{}°", last_t).as_ref());
-                    }
-                    trending_up = Some(true);
-                }
-            }
-
-            last_t = Some(hour.temperature);
-            last_x = Some(x);
-            last_y = Some(y);
-
-            x = x + x_step;
-        }
+        draw_hourly_trend(&mut imgbuf, styles, hourly_forecast.unwrap());
     }
 
 //    let mut rotated = imageproc::affine::rotate(&imgbuf, (EPD_HEIGHT as f32 / 2.0 as f32, EPD_HEIGHT as f32 / 2.0), (270 as f32).to_radians(), imageproc::affine::Interpolation::Bilinear);
@@ -385,13 +372,49 @@ fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>
     return Ok(());
 }
 
-struct TTDash {
+struct Styles<'a> {
+    font: rusttype::Font<'a>,
+    font_bold: rusttype::Font<'a>,
+    font_black: rusttype::Font<'a>,
+
+    color_black: image::Luma<u8>,
+    color_white: image::Luma<u8>,
+}
+
+struct TTDash<'a> {
     daily_forecast: Option<Vec<weather::DailyForecast>>,
     hourly_forecast: Option<Vec<weather::HourlyForecast>>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
+    styles: Styles<'a>,
 }
 
-impl TTDash {
+impl<'a> TTDash<'a> {
+    fn new() -> TTDash<'a> {
+        let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
+        let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
+
+        let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf") as &[u8]);
+        let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
+
+        let font_bold = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Bold.ttf") as &[u8]);
+        let font_bold = rusttype::FontCollection::from_bytes(font_bold).unwrap().into_font().unwrap();
+
+        return TTDash {
+            daily_forecast: None,
+            hourly_forecast: None,
+            forecast_timestamp: chrono::Utc::now(),
+
+            styles: Styles{
+                font_black: font_black,
+                font_bold: font_bold,
+                font: font,
+                color_black: image::Luma{data: [0u8; 1]},
+                color_white: image::Luma{data: [255u8; 1]},
+            },
+        }
+    }
+
+
     fn one_iteration(&mut self, display: bool, png_out: Option<String>, prev_processed_data: &ProcessedData) -> result::TTDashResult<ProcessedData>{
         let raw_data = fetch_data()?;
         let processed_data = process_data(&raw_data)?;
@@ -409,7 +432,8 @@ impl TTDash {
         let imgbuf = generate_image(
             &processed_data,
             self.hourly_forecast.as_ref(),
-            self.daily_forecast.as_ref())?;
+            self.daily_forecast.as_ref(),
+            &self.styles)?;
 
         if png_out.is_some() {
             let _ = imgbuf.save(png_out.unwrap())?;
@@ -446,11 +470,7 @@ fn main() {
     println!("Running. display={} one-shot={}", display, one_shot);
 
     let mut prev_processed_data = ProcessedData::empty();
-    let mut ttdash = TTDash{
-        forecast_timestamp: chrono::Utc::now(),
-        hourly_forecast: None,
-        daily_forecast: None,
-    };
+    let mut ttdash = TTDash::new();
 
     loop {
         match ttdash.one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
