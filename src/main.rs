@@ -431,6 +431,13 @@ impl<'a> TTDash<'a> {
         }
     }
 
+    fn update_weather(&mut self, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
+        self.hourly_forecast = Some(weather::fetch_hourly_forecast()?);
+        self.daily_forecast = Some(weather::fetch_daily_forecast()?);
+        self.forecast_timestamp = *now;
+
+        return Ok(());
+    }
 
     fn one_iteration(&mut self, display: bool, png_out: Option<String>, prev_processed_data: &ProcessedData) -> result::TTDashResult<ProcessedData>{
         let raw_data = fetch_data()?;
@@ -440,10 +447,10 @@ impl<'a> TTDash<'a> {
         // TODO(mrjones): Don't fetch every time
         let now = chrono::Utc::now();
         if self.hourly_forecast.is_none() || (now.timestamp() - self.forecast_timestamp.timestamp() > 60 * 30) {
-            println!("Fetching weather forecast");
-            self.hourly_forecast = Some(weather::fetch_hourly_forecast()?);
-            self.daily_forecast = Some(weather::fetch_daily_forecast()?);
-            self.forecast_timestamp = now;
+            match self.update_weather(&now) {
+                Ok(_) => {},
+                Err(err) => println!("Error: {:?}", err),
+            }
         }
 
         let imgbuf = generate_image(
