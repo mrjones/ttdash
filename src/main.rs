@@ -226,6 +226,44 @@ fn scale(s: f32) -> rusttype::Scale {
     return rusttype::Scale{x: s, y: s};
 }
 
+fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &ProcessedData) {
+    let now = chrono::Utc::now().timestamp();
+
+    imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);
+
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 10, scale(50.0), &styles.font_bold, &data.station_name);
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 50, scale(40.0), &styles.font, "R to Manhattan");
+
+    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 95.0), (EPD_HEIGHT as f32 - 10.0, 95.0), styles.color_black);
+
+    use chrono::TimeZone;
+
+    match data.big_countdown {
+        Some(ref big_text) => {
+            let x;
+            if big_text.len() == 1 {
+                x = 70;
+            } else {
+                x = 10;
+            }
+            imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, x, 55, scale(250.0), &styles.font_black, big_text);
+
+        },
+        _ => {},
+    }
+
+    for i in 0..std::cmp::min(data.upcoming_trains.len(), 5) {
+        let countdown = countdown_summary(now, data.upcoming_trains[i]);
+        let arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[i], 0);
+        let arrival_formatted = arrival.format("%-I:%M").to_string();
+        let y = 100 + 40 * i as u32;
+
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, EPD_HEIGHT as u32 - 100, y, scale(50.0), &styles.font, &arrival_formatted);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, EPD_HEIGHT as u32 - 165, y, scale(50.0), &styles.font_bold, &countdown);
+    }
+
+}
+
 fn draw_daily_forecast(imgbuf: &mut image::GrayImage, styles: &Styles, daily_forecast: &Vec<weather::DailyForecast>) {
     let weather_x = 400;
     let weather_y = 150;
@@ -308,52 +346,15 @@ fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_fore
 fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
 
-    let now = chrono::Utc::now().timestamp();
-
-    imageproc::drawing::draw_filled_rect_mut(&mut imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);
-
-//    let header_text = format!("Manhattan / R", data.station_name);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, 10, 10, scale(50.0), &styles.font_bold, &data.station_name);
-    imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, 10, 50, scale(40.0), &styles.font, "R to Manhattan");
-
-    imageproc::drawing::draw_line_segment_mut(&mut imgbuf, (10.0, 95.0), (EPD_HEIGHT as f32 - 10.0, 95.0), styles.color_black);
-
-    use chrono::TimeZone;
-
-    match data.big_countdown {
-        Some(ref big_text) => {
-            let x;
-            if big_text.len() == 1 {
-                x = 70;
-            } else {
-                x = 10;
-            }
-            imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, x, 55, scale(250.0), &styles.font_black, big_text);
-
-        },
-        _ => {},
-    }
-
-    for i in 0..std::cmp::min(data.upcoming_trains.len(), 5) {
-        let countdown = countdown_summary(now, data.upcoming_trains[i]);
-        let arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[i], 0);
-        let arrival_formatted = arrival.format("%-I:%M").to_string();
-        let y = 100 + 40 * i as u32;
-
-        imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, EPD_HEIGHT as u32 - 100, y, scale(50.0), &styles.font, &arrival_formatted);
-        imageproc::drawing::draw_text_mut(&mut imgbuf, styles.color_black, EPD_HEIGHT as u32 - 165, y, scale(50.0), &styles.font_bold, &countdown);
-    }
+    draw_subway_arrivals(&mut imgbuf, styles, data);
 
     if daily_forecast.is_some() {
         draw_daily_forecast(&mut imgbuf, styles, daily_forecast.unwrap());
     }
 
-
     if hourly_forecast.is_some() {
         draw_hourly_trend(&mut imgbuf, styles, hourly_forecast.unwrap());
     }
-
-//    let mut rotated = imageproc::affine::rotate(&imgbuf, (EPD_HEIGHT as f32 / 2.0 as f32, EPD_HEIGHT as f32 / 2.0), (270 as f32).to_radians(), imageproc::affine::Interpolation::Bilinear);
 
     return Ok(image::imageops::crop(&mut imgbuf, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
 }
