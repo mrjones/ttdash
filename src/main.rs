@@ -173,6 +173,7 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
 struct ProcessedData {
     upcoming_trains: Vec<(i64, String)>,
     big_countdown: Option<String>,
+    big_countdown_line: Option<String>,
     station_name: String,
 }
 
@@ -181,6 +182,7 @@ impl ProcessedData {
         return ProcessedData{
             upcoming_trains: vec![],
             big_countdown: None,
+            big_countdown_line: None,
             station_name: "".to_string(),
         };
     }
@@ -212,11 +214,13 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
         return Ok(ProcessedData::empty());
     } else {
         arrivals.sort_by_key(|x| x.0);
-        let first_arrival = arrivals[0].0;
+        let first_arrival_ts = arrivals[0].0;
+        let first_arrival_line = arrivals[0].1.to_string();
 
         return Ok(ProcessedData{
             upcoming_trains: arrivals,
-            big_countdown: Some(countdown_summary(now, first_arrival)),
+            big_countdown: Some(countdown_summary(now, first_arrival_ts)),
+            big_countdown_line: Some(first_arrival_line),
             station_name: data.get_name().to_string(),
         });
     }
@@ -244,6 +248,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &P
 
     use chrono::TimeZone;
 
+    let big_line = data.big_countdown_line.clone().unwrap_or("R".to_string());
     match data.big_countdown {
         Some(ref big_text) => {
             let x;
@@ -253,7 +258,9 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &P
                 x = 10;
             }
             imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, x, 55, scale(250.0), &styles.font_black, big_text);
-            draw_subway_line_emblem(imgbuf, "R", 30, 125, 20, styles);
+            if big_line != "R" {
+                draw_subway_line_emblem(imgbuf, &big_line, 30, 125, 20, styles);
+            }
         },
         _ => {},
     }
@@ -268,7 +275,9 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &P
         imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 219, y, scale(50.0), &styles.font_bold, &countdown);
         imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 284, y, scale(50.0), &styles.font, &arrival_formatted);
 
-        draw_subway_line_emblem(imgbuf, line, 375, y + 25, 12, styles);
+        if line != "R" {
+            draw_subway_line_emblem(imgbuf, line, 375, y + 25, 12, styles);
+        }
 
         y = y + y_step;
     }
