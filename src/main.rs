@@ -140,9 +140,9 @@ fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<ima
             } else {
                 if color < 64 {
                     pixel_in_progress |= 0x00;
-                } else if color < 128 {
+                } else if color <= 128 {
                     pixel_in_progress |= 0x01;
-                } else if color < 192 {
+                } else if color <= 192 {
                     pixel_in_progress |= 0x02;
                 } else {
                     pixel_in_progress |= 0x03;
