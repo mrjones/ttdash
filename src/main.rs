@@ -130,9 +130,9 @@ fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<ima
             if x % 2 == 0 {
                 if color < 64 {
                     pixel_in_progress = 0x00;
-                } else if color < 128 {
+                } else if color <= 128 {
                     pixel_in_progress = 0x10;
-                } else if color < 192 {
+                } else if color <= 192 {
                     pixel_in_progress = 0x20;
                 } else {
                     pixel_in_progress = 0x30;
@@ -227,7 +227,7 @@ fn scale(s: f32) -> rusttype::Scale {
 }
 
 fn draw_subway_line_emblem(imgbuf: &mut image::GrayImage, letter: &str, x: u32, y: u32, radius: u32, styles: &Styles) {
-    imageproc::drawing::draw_filled_circle_mut(imgbuf, (x as i32, y as i32), radius as i32, styles.color_gray);
+    imageproc::drawing::draw_filled_circle_mut(imgbuf, (x as i32, y as i32), radius as i32, styles.color_light_gray);
     imageproc::drawing::draw_text_mut(imgbuf, styles.color_white, x - (radius / 2) + 2, y - radius, scale((radius * 2) as f32), &styles.font_bold, letter);
 }
 
@@ -268,8 +268,6 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &P
         imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 284, y, scale(50.0), &styles.font, &arrival_formatted);
 
         draw_subway_line_emblem(imgbuf, line, 375, y + 25, 12, styles);
-//        imageproc::drawing::draw_filled_circle_mut(imgbuf, (375, (y + 25) as i32), 12, styles.color_black);
-//        imageproc::drawing::draw_text_mut(imgbuf, styles.color_white, 370, y + 13, scale(25.0), &styles.font_bold, line);
 
         y = y + y_step;
     }
@@ -407,7 +405,8 @@ struct Styles<'a> {
     font_black: rusttype::Font<'a>,
 
     color_black: image::Luma<u8>,
-    color_gray: image::Luma<u8>,
+    color_light_gray: image::Luma<u8>,
+    color_dark_gray: image::Luma<u8>,
     color_white: image::Luma<u8>,
 }
 
@@ -439,7 +438,8 @@ impl<'a> TTDash<'a> {
                 font_bold: font_bold,
                 font: font,
                 color_black: image::Luma{data: [0u8; 1]},
-                color_gray: image::Luma{data: [128u8; 1]},
+                color_light_gray: image::Luma{data: [128u8; 1]},
+                color_dark_gray: image::Luma{data: [192u8; 1]},
                 color_white: image::Luma{data: [255u8; 1]},
             },
         }
