@@ -171,7 +171,7 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
 }
 
 struct ProcessedData {
-    upcoming_trains: Vec<i64>,
+    upcoming_trains: Vec<(i64, String)>,
     big_countdown: Option<String>,
     station_name: String,
 }
@@ -199,10 +199,10 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
     let mut arrivals = vec![];
     let now = chrono::Utc::now().timestamp();
     for line in data.get_line() {
-        if line.get_line() == "R" && line.get_direction() == webclient_api::Direction::UPTOWN {
+        if line.get_direction() == webclient_api::Direction::UPTOWN {
             for arrival in line.get_arrivals() {
                 if arrival.get_timestamp() > now {
-                    arrivals.push(arrival.get_timestamp());
+                    arrivals.push((arrival.get_timestamp(), line.get_line().to_string()));
                 }
             }
         }
@@ -211,8 +211,8 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
     if arrivals.len() == 0 {
         return Ok(ProcessedData::empty());
     } else {
-        arrivals.sort();
-        let first_arrival = arrivals[0];
+        arrivals.sort_by_key(|x| x.0);
+        let first_arrival = arrivals[0].0;
 
         return Ok(ProcessedData{
             upcoming_trains: arrivals,
@@ -226,13 +226,18 @@ fn scale(s: f32) -> rusttype::Scale {
     return rusttype::Scale{x: s, y: s};
 }
 
+fn draw_subway_line_emblem(imgbuf: &mut image::GrayImage, letter: &str, x: u32, y: u32, radius: u32, styles: &Styles) {
+    imageproc::drawing::draw_filled_circle_mut(imgbuf, (x as i32, y as i32), radius as i32, styles.color_gray);
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_white, x - (radius / 2) + 2, y - radius, scale((radius * 2) as f32), &styles.font_bold, letter);
+}
+
 fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &ProcessedData) {
     let now = chrono::Utc::now().timestamp();
 
     imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);
 
     imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 10, scale(50.0), &styles.font_bold, &data.station_name);
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 50, scale(40.0), &styles.font, "R to Manhattan");
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 50, scale(40.0), &styles.font, "To Manhattan");
 
     imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 95.0), (EPD_HEIGHT as f32 - 10.0, 95.0), styles.color_black);
 
@@ -247,19 +252,26 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &P
                 x = 10;
             }
             imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, x, 55, scale(250.0), &styles.font_black, big_text);
-
+            draw_subway_line_emblem(imgbuf, "R", 30, 125, 20, styles);
         },
         _ => {},
     }
 
-    for i in 0..std::cmp::min(data.upcoming_trains.len(), 5) {
-        let countdown = countdown_summary(now, data.upcoming_trains[i]);
-        let arrival = chrono_tz::US::Eastern.timestamp(data.upcoming_trains[i], 0);
+    let mut y = 100;
+    let y_step = 40;
+    for (ref ts, ref line) in data.upcoming_trains.iter().take(5) {
+        let countdown = countdown_summary(now, *ts);
+        let arrival = chrono_tz::US::Eastern.timestamp(*ts, 0);
         let arrival_formatted = arrival.format("%-I:%M").to_string();
-        let y = 100 + 40 * i as u32;
 
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, EPD_HEIGHT as u32 - 100, y, scale(50.0), &styles.font, &arrival_formatted);
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, EPD_HEIGHT as u32 - 165, y, scale(50.0), &styles.font_bold, &countdown);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 219, y, scale(50.0), &styles.font_bold, &countdown);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 284, y, scale(50.0), &styles.font, &arrival_formatted);
+
+        draw_subway_line_emblem(imgbuf, line, 375, y + 25, 12, styles);
+//        imageproc::drawing::draw_filled_circle_mut(imgbuf, (375, (y + 25) as i32), 12, styles.color_black);
+//        imageproc::drawing::draw_text_mut(imgbuf, styles.color_white, 370, y + 13, scale(25.0), &styles.font_bold, line);
+
+        y = y + y_step;
     }
 
 }
@@ -395,6 +407,7 @@ struct Styles<'a> {
     font_black: rusttype::Font<'a>,
 
     color_black: image::Luma<u8>,
+    color_gray: image::Luma<u8>,
     color_white: image::Luma<u8>,
 }
 
@@ -407,13 +420,13 @@ struct TTDash<'a> {
 
 impl<'a> TTDash<'a> {
     fn new() -> TTDash<'a> {
-        let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Regular.ttf") as &[u8]);
+        let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Regular.ttf") as &[u8]);
         let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
 
         let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf") as &[u8]);
         let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
 
-        let font_bold = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/Roboto-Bold.ttf") as &[u8]);
+        let font_bold = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf") as &[u8]);
         let font_bold = rusttype::FontCollection::from_bytes(font_bold).unwrap().into_font().unwrap();
 
         return TTDash {
@@ -426,6 +439,7 @@ impl<'a> TTDash<'a> {
                 font_bold: font_bold,
                 font: font,
                 color_black: image::Luma{data: [0u8; 1]},
+                color_gray: image::Luma{data: [128u8; 1]},
                 color_white: image::Luma{data: [255u8; 1]},
             },
         }
