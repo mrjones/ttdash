@@ -1,0 +1,10 @@
+# sudo ln -s $(pwd)/ttdash.service /lib/systemd/system/ttdash.service
+[Unit]
+Description=TrainTrack Dashboard
+
+[Service]
+Type=simple
+ExecStart=/home/pi/ttdash
+
+[Install]
+WantedBy=multi-user.target
