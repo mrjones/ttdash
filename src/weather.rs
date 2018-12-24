@@ -83,6 +83,7 @@ pub struct GridForecastEntry {
 #[derive(Debug)]
 pub struct GridForecast {
     pub precip_prob: Vec<GridForecastEntry>,
+    pub temp: Vec<GridForecastEntry>,
 }
 
 // Parses: "PT1H" -> 1 hour, "PT13H" -> 13 hours, etc
@@ -146,17 +147,27 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
 
     let forecast: NwsApiGridForecast = serde_json::from_str(&response_body)?;
 
-    let mut precip_prob = vec![];
-    for precip_entry in forecast.properties.probability_of_precipitation.values {
-        let (time, duration) = parse_time_and_duration(&precip_entry.valid_time)?;
-        precip_prob.push(GridForecastEntry{
+    let mut precip_probs = vec![];
+    let mut temps = vec![];
+    for entry in &forecast.properties.probability_of_precipitation.values {
+        let (time, duration) = parse_time_and_duration(&entry.valid_time)?;
+        precip_probs.push(GridForecastEntry{
             time: time,
             duration: duration,
-            value: precip_entry.value,
+            value: entry.value,
+        });
+    }
+    for entry in &forecast.properties.probability_of_precipitation.values {
+        let (time, duration) = parse_time_and_duration(&entry.valid_time)?;
+        temps.push(GridForecastEntry{
+            time: time,
+            duration: duration,
+            value: entry.value,
         });
     }
     return Ok(GridForecast{
-        precip_prob: precip_prob,
+        precip_prob: precip_probs,
+        temp: temps,
     });
 }
 
