@@ -371,14 +371,84 @@ fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_fore
     }
 }
 
-fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
+fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_forecast: &weather::GridForecast) {
+    use chrono::Datelike;
+    use chrono::Timelike;
+    use chrono::TimeZone;
+
+    let now = chrono::Utc::now();
+    let mut day_num = 0;
+
+    let height = 50;
+    let hour_width = 1;
+    let max_width = hour_width * 24;
+
+    let mut last_day = None;
+
+    let left_x = 350;
+    let top_y = 100;
+
+    let mut day_num_labels = std::collections::HashMap::new();
+
+    for period in &grid_forecast.precip_prob {
+        if period.time.timestamp() > now.timestamp() {
+            let local_time = chrono_tz::US::Eastern.timestamp(period.time.timestamp(), 0);
+            if last_day.is_some() {
+                day_num = day_num + (local_time.num_days_from_ce() - last_day.unwrap()) as u32;
+            }
+            last_day = Some(local_time.num_days_from_ce());
+
+            // TODO(mrjones): Do this once per day, not once per hour.
+            day_num_labels.insert(day_num, vec!["S", "M", "T", "W", "R", "F", "S"].get(local_time.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string());
+
+            let local_hour = local_time.hour();
+            let bar_height = std::cmp::max(1, (height as f32 * (period.value / 100.0)) as u32);
+
+            // TODO(mrjones): Handle carry-over to next day.
+            let num_hours = std::cmp::min(
+                period.duration.num_hours() as u32,
+                24 - local_hour);
+
+            imageproc::drawing::draw_filled_rect_mut(
+                imgbuf,
+                imageproc::rect::Rect::at(
+                    (left_x + day_num * (24 * hour_width + 15) + local_hour * hour_width) as i32, (top_y + height - bar_height) as i32)
+                    .of_size(num_hours * hour_width, bar_height),
+                styles.color_black);
+
+        }
+    }
+
+    for i in 0..day_num {
+        match day_num_labels.get(&i) {
+            Some(label) => {
+                imageproc::drawing::draw_text_mut(
+                    imgbuf, styles.color_black, left_x + i * (24 * hour_width + 15), (top_y + height) as u32, scale(30.0), &styles.font_bold, label);
+            },
+            None => {},
+        }
+        /*
+        imageproc::drawing::draw_line_segment_mut(
+            imgbuf,
+            (left_x as f32, (top_y + i * height) as f32),
+            ((left_x + 24 * hour_width) as f32, (top_y + i * height) as f32),
+            styles.color_black);
+         */
+    }
+}
+
+fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, grid_forecast: Option<&weather::GridForecast>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
 
     draw_subway_arrivals(&mut imgbuf, styles, data);
 
-    if daily_forecast.is_some() {
-        draw_daily_forecast(&mut imgbuf, styles, daily_forecast.unwrap());
+    if grid_forecast.is_some() {
+        draw_weather_grid(&mut imgbuf, styles, grid_forecast.unwrap());
     }
+
+//    if daily_forecast.is_some() {
+//        draw_daily_forecast(&mut imgbuf, styles, daily_forecast.unwrap());
+//    }
 
     if hourly_forecast.is_some() {
         draw_big_current_temperature(&mut imgbuf, styles, hourly_forecast.unwrap());
@@ -423,6 +493,7 @@ struct Styles<'a> {
 struct TTDash<'a> {
     daily_forecast: Option<Vec<weather::DailyForecast>>,
     hourly_forecast: Option<Vec<weather::HourlyForecast>>,
+    grid_forecast: Option<weather::GridForecast>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
     styles: Styles<'a>,
 }
@@ -441,6 +512,7 @@ impl<'a> TTDash<'a> {
         return TTDash {
             daily_forecast: None,
             hourly_forecast: None,
+            grid_forecast: None,
             forecast_timestamp: chrono::Utc::now(),
 
             styles: Styles{
@@ -458,6 +530,7 @@ impl<'a> TTDash<'a> {
     fn update_weather(&mut self, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
         self.hourly_forecast = Some(weather::fetch_hourly_forecast()?);
         self.daily_forecast = Some(weather::fetch_daily_forecast()?);
+        self.grid_forecast = Some(weather::fetch_grid_forecast()?);
         self.forecast_timestamp = *now;
 
         return Ok(());
@@ -481,6 +554,7 @@ impl<'a> TTDash<'a> {
             &processed_data,
             self.hourly_forecast.as_ref(),
             self.daily_forecast.as_ref(),
+            self.grid_forecast.as_ref(),
             &self.styles)?;
 
         if png_out.is_some() {
