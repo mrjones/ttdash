@@ -136,6 +136,15 @@ fn parse_time_and_duration(input: &str) -> result::TTDashResult<(chrono::DateTim
                parse_duration(parts[1])?));
 }
 
+fn parse_grid_entry(entry: &NwsApiGridValue) -> result::TTDashResult<GridForecastEntry> {
+    let (time, duration) = parse_time_and_duration(&entry.valid_time)?;
+    return Ok(GridForecastEntry{
+        time: time,
+        duration: duration,
+        value: entry.value,
+    });
+}
+
 pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
     use std::io::Read;
 
@@ -147,6 +156,10 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
 
     let forecast: NwsApiGridForecast = serde_json::from_str(&response_body)?;
 
+    let precip_probs : result::TTDashResult<Vec<GridForecastEntry>> = forecast.properties.probability_of_precipitation.values.iter().map(parse_grid_entry).collect();
+    let temps : result::TTDashResult<Vec<GridForecastEntry>> = forecast.properties.temperature.values.iter().map(parse_grid_entry).collect();
+
+    /*
     let mut precip_probs = vec![];
     let mut temps = vec![];
     for entry in &forecast.properties.probability_of_precipitation.values {
@@ -165,9 +178,10 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
             value: entry.value,
         });
     }
+*/
     return Ok(GridForecast{
-        precip_prob: precip_probs,
-        temp: temps,
+        precip_prob: precip_probs?,
+        temp: temps?,
     });
 }
 
