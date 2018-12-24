@@ -9,6 +9,7 @@ pub type TTDashResult<T> = std::result::Result<T, TTDashError>;
 
 #[derive(Debug)]
 pub enum TTDashError {
+    SimpleError(String),
     ChronoParseError(chrono::ParseError),
     GpioError(rppal::gpio::Error),
     HttpError(reqwest::Error),
@@ -18,9 +19,16 @@ pub enum TTDashError {
     SpiError(rppal::spi::Error),
 }
 
+pub fn MakeError(s: &str) -> TTDashError{
+    return TTDashError::SimpleError(s.to_string());
+}
+
 impl std::fmt::Display for TTDashError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
+            TTDashError::SimpleError(ref s) => {
+                return write!(f, "Simple Error: {}", s)
+            }
             TTDashError::ChronoParseError(ref err) => {
                 return write!(f, "Chrono Parse Error: {}", err);
             },
@@ -49,6 +57,7 @@ impl std::fmt::Display for TTDashError {
 impl std::error::Error for TTDashError {
     fn description(&self) -> &str {
         match *self {
+            TTDashError::SimpleError(_) => "SimpleError",
             TTDashError::ChronoParseError(_) => "ChronoParseError",
             TTDashError::GpioError(_) => "GpioError",
             TTDashError::HttpError(_) => "HttpError",

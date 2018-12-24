@@ -88,12 +88,11 @@ pub struct GridForecast {
 // Parses: "PT1H" -> 1 hour, "PT13H" -> 13 hours, etc
 // https://en.wikipedia.org/wiki/ISO_8601#Durations
 // TODO(mrjones): Parse day/month/year durations as well?
-fn parse_duration(input: &str) -> Option<chrono::Duration> {
+fn parse_duration(input: &str) -> result::TTDashResult<chrono::Duration> {
     let required_prefix = "PT";
 
     if !input.starts_with(required_prefix) {
-        println!("Malformed duration {}", input);
-        return None;
+        return Err(result::MakeError(&format!("Malformed duration {}", input)));
     }
 
     // TODO(mrjones): File bug against maplit, for not being able to use hashmap! here
@@ -114,15 +113,26 @@ fn parse_duration(input: &str) -> Option<chrono::Duration> {
                         acc = 0;
                     },
                     None => {
-                        println!("Bad duration string '{}' at char #{}. ", input, i);
-                        return None;
+                        return Err(result::MakeError(&format!("Bad duration string '{}' at char #{}. ", input, i)));
                     }
                 }
             },
         }
     }
 
-    return Some(result);
+    return Ok(result);
+}
+
+fn parse_time_and_duration(input: &str) -> result::TTDashResult<(chrono::DateTime<chrono::FixedOffset>, chrono::Duration)> {
+    let parts: Vec<&str> = input.split("/").collect();
+
+    if parts.len() < 2 {
+        return Err(result::MakeError(&format!(
+            "Couldn't parse time+duration string: '{}'", input)));
+    }
+
+    return Ok((chrono::DateTime::parse_from_rfc3339(parts[0])?,
+               parse_duration(parts[1])?));
 }
 
 pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
@@ -138,21 +148,12 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
 
     let mut precip_prob = vec![];
     for precip_entry in forecast.properties.probability_of_precipitation.values {
-        let spec_parts: Vec<&str> = precip_entry.valid_time.split("/").collect();
-
-        if spec_parts.len() > 0 {
-            let duration = spec_parts
-                .get(1)
-                .and_then(|x| parse_duration(*x))
-                .unwrap_or(chrono::Duration::hours(1));
-
-            precip_prob.push(GridForecastEntry{
-                time: chrono::DateTime::parse_from_rfc3339(spec_parts[0])?,
-                duration: duration,
-                value: precip_entry.value,
-            });
-
-        }
+        let (time, duration) = parse_time_and_duration(&precip_entry.valid_time)?;
+        precip_prob.push(GridForecastEntry{
+            time: time,
+            duration: duration,
+            value: precip_entry.value,
+        });
     }
     return Ok(GridForecast{
         precip_prob: precip_prob,
