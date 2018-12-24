@@ -381,6 +381,7 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
 
     let height = 50;
     let hour_width = 1;
+    let day_width = 24 * hour_width + 5;
     let max_width = hour_width * 24;
 
     let mut last_day = None;
@@ -405,16 +406,28 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
             let bar_height = std::cmp::max(1, (height as f32 * (period.value / 100.0)) as u32);
 
             // TODO(mrjones): Handle carry-over to next day.
+
             let num_hours = std::cmp::min(
                 period.duration.num_hours() as u32,
                 24 - local_hour);
+            let carryover_hours = period.duration.num_hours() as u32 - num_hours;
 
             imageproc::drawing::draw_filled_rect_mut(
                 imgbuf,
                 imageproc::rect::Rect::at(
-                    (left_x + day_num * (24 * hour_width + 15) + local_hour * hour_width) as i32, (top_y + height - bar_height) as i32)
+                    (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + height - bar_height) as i32)
                     .of_size(num_hours * hour_width, bar_height),
                 styles.color_black);
+
+            if carryover_hours > 0 {
+                imageproc::drawing::draw_filled_rect_mut(
+                    imgbuf,
+                    imageproc::rect::Rect::at(
+                        (left_x + (day_num + 1) * day_width) as i32, (top_y + height - bar_height) as i32)
+                        .of_size(carryover_hours * hour_width, bar_height),
+                    styles.color_black);
+
+            }
 
         }
     }
@@ -423,7 +436,7 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
         match day_num_labels.get(&i) {
             Some(label) => {
                 imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, left_x + i * (24 * hour_width + 15), (top_y + height) as u32, scale(30.0), &styles.font_bold, label);
+                    imgbuf, styles.color_black, left_x + i * day_width + (8 * hour_width), (top_y + height) as u32, scale(30.0), &styles.font_bold, label);
             },
             None => {},
         }
