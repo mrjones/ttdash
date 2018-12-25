@@ -86,6 +86,22 @@ pub struct GridForecast {
     pub temp: Vec<GridForecastEntry>,
 }
 
+#[derive(Debug)]
+pub struct DenseGridHour {
+    pub precip_prob: f32,
+    pub temperature: f32,
+}
+
+#[derive(Debug)]
+pub struct DenseGridDay {
+    pub hours: std::collections::BTreeMap<u32, DenseGridHour>,
+}
+
+#[derive(Debug)]
+pub struct DenseGridForecast {
+    pub hours: std::collections::BTreeMap<chrono::DateTime<chrono::FixedOffset>, DenseGridHour>,
+}
+
 // Parses: "PT1H" -> 1 hour, "PT13H" -> 13 hours, etc
 // https://en.wikipedia.org/wiki/ISO_8601#Durations
 // TODO(mrjones): Parse day/month/year durations as well?
@@ -177,6 +193,34 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
         precip_prob: precip_probs?,
         temp: temps?,
     });
+}
+
+pub fn densify_grid_forecast(sparse: &GridForecast) -> result::TTDashResult<DenseGridForecast> {
+    let mut result = DenseGridForecast{
+        hours: std::collections::BTreeMap::new(),
+    };
+
+    for precip_entry in &sparse.precip_prob {
+        for i in 0..precip_entry.duration.num_hours() {
+            let hour = precip_entry.time + chrono::Duration::hours(i);
+            let mut hour_entry = result.hours.entry(hour)
+                .or_insert(DenseGridHour{precip_prob: 0.0, temperature: 0.0});
+
+            hour_entry.precip_prob = precip_entry.value;
+        }
+    }
+
+    for temp_entry in &sparse.temp {
+        for i in 0..temp_entry.duration.num_hours() {
+            let hour = temp_entry.time + chrono::Duration::hours(i);
+            let mut hour_entry = result.hours.entry(hour)
+                .or_insert(DenseGridHour{precip_prob: 0.0, temperature: 0.0});
+
+            hour_entry.temperature = temp_entry.value;
+        }
+    }
+
+    return Ok(result);
 }
 
 pub fn fetch_daily_forecast() -> result::TTDashResult<Vec<DailyForecast>> {

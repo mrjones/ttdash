@@ -371,7 +371,7 @@ fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_fore
     }
 }
 
-fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_forecast: &weather::GridForecast) {
+fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_forecast: &weather::GridForecast) -> result::TTDashResult<()> {
     use chrono::Datelike;
     use chrono::Timelike;
     use chrono::TimeZone;
@@ -391,45 +391,27 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
 
     let mut day_num_labels = std::collections::HashMap::new();
 
-    for period in &grid_forecast.precip_prob {
-        if period.time.timestamp() > now.timestamp() {
-            let local_time = chrono_tz::US::Eastern.timestamp(period.time.timestamp(), 0);
-            if last_day.is_some() {
-                day_num = day_num + (local_time.num_days_from_ce() - last_day.unwrap()) as u32;
-            }
-            last_day = Some(local_time.num_days_from_ce());
+    let dense_forecast = weather::densify_grid_forecast(&grid_forecast)?;
 
-            // TODO(mrjones): Do this once per day, not once per hour.
-            day_num_labels.insert(day_num, vec!["S", "M", "T", "W", "R", "F", "S"].get(local_time.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string());
-
-            let local_hour = local_time.hour();
-            let bar_height = std::cmp::max(1, (height as f32 * (period.value / 100.0)) as u32);
-
-            // TODO(mrjones): Handle carry-over to next day.
-
-            let num_hours = std::cmp::min(
-                period.duration.num_hours() as u32,
-                24 - local_hour);
-            let carryover_hours = period.duration.num_hours() as u32 - num_hours;
-
-            imageproc::drawing::draw_filled_rect_mut(
-                imgbuf,
-                imageproc::rect::Rect::at(
-                    (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + height - bar_height) as i32)
-                    .of_size(num_hours * hour_width, bar_height),
-                styles.color_black);
-
-            if carryover_hours > 0 {
-                imageproc::drawing::draw_filled_rect_mut(
-                    imgbuf,
-                    imageproc::rect::Rect::at(
-                        (left_x + (day_num + 1) * day_width) as i32, (top_y + height - bar_height) as i32)
-                        .of_size(carryover_hours * hour_width, bar_height),
-                    styles.color_black);
-
-            }
-
+    for (hour_ts, values) in &dense_forecast.hours {
+        let local_time = chrono_tz::US::Eastern.timestamp(hour_ts.timestamp(), 0);
+        if last_day.is_some() {
+            day_num = day_num + (local_time.num_days_from_ce() - last_day.unwrap()) as u32;
         }
+        last_day = Some(local_time.num_days_from_ce());
+
+        // TODO(mrjones): Do this once per day, not once per hour.
+        day_num_labels.insert(day_num, vec!["S", "M", "T", "W", "R", "F", "S"].get(local_time.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string());
+
+        let local_hour = local_time.hour();
+        let bar_height = std::cmp::max(1, (height as f32 * (values.precip_prob / 100.0)) as u32);
+
+        imageproc::drawing::draw_filled_rect_mut(
+            imgbuf,
+            imageproc::rect::Rect::at(
+                (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + height - bar_height) as i32)
+                .of_size(hour_width, bar_height),
+            styles.color_black);
     }
 
     for i in 0..day_num {
@@ -448,6 +430,8 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
             styles.color_black);
          */
     }
+
+    return Ok(());
 }
 
 fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, grid_forecast: Option<&weather::GridForecast>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
@@ -456,7 +440,7 @@ fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::Ho
     draw_subway_arrivals(&mut imgbuf, styles, data);
 
     if grid_forecast.is_some() {
-        draw_weather_grid(&mut imgbuf, styles, grid_forecast.unwrap());
+        draw_weather_grid(&mut imgbuf, styles, grid_forecast.unwrap()).unwrap();
     }
 
 //    if daily_forecast.is_some() {
