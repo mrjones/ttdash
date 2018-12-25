@@ -90,7 +90,7 @@ pub struct GridForecast {
 // https://en.wikipedia.org/wiki/ISO_8601#Durations
 // TODO(mrjones): Parse day/month/year durations as well?
 fn parse_duration(input: &str) -> result::TTDashResult<chrono::Duration> {
-    let required_prefix = "PT";
+    let required_prefix = "P";
 
     if !input.starts_with(required_prefix) {
         return Err(result::MakeError(&format!("Malformed duration {}", input)));
@@ -102,22 +102,35 @@ fn parse_duration(input: &str) -> result::TTDashResult<chrono::Duration> {
     time_parsers.insert('M', chrono::Duration::minutes);
     time_parsers.insert('S', chrono::Duration::seconds);
 
+    let mut date_parsers : std::collections::HashMap<char, fn(i64) -> chrono::Duration> = std::collections::HashMap::new();
+    date_parsers.insert('D', chrono::Duration::days);
+
     let mut result = chrono::Duration::seconds(0);
     let mut acc = 0;
+
+    #[derive(PartialEq)]
+    enum ParseRegion { DatePart, TimePart };
+    let mut parse_region = ParseRegion::DatePart;
+
     for (i, c) in input.chars().skip(required_prefix.len()).enumerate() {
-        match c.to_digit(10) {
-            Some(d) => acc = (10 * acc) + (d as i64),
-            None => {
-                match time_parsers.get(&c) {
-                    Some(num_to_duration_fn) => {
-                        result = result + num_to_duration_fn(acc);
-                        acc = 0;
-                    },
-                    None => {
-                        return Err(result::MakeError(&format!("Bad duration string '{}' at char #{}. ", input, i)));
+        if c == 'T' {
+            parse_region = ParseRegion::TimePart;
+        } else {
+            match c.to_digit(10) {
+                Some(d) => acc = (10 * acc) + (d as i64),
+                None => {
+                    let parsers = if parse_region == ParseRegion::DatePart { &date_parsers} else { &time_parsers };
+                    match parsers.get(&c) {
+                        Some(num_to_duration_fn) => {
+                            result = result + num_to_duration_fn(acc);
+                            acc = 0;
+                        },
+                        None => {
+                            return Err(result::MakeError(&format!("Bad duration string '{}' at char #{}. ", input, i)));
+                        }
                     }
-                }
-            },
+                },
+            }
         }
     }
 
@@ -156,29 +169,10 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
 
     let forecast: NwsApiGridForecast = serde_json::from_str(&response_body)?;
 
-    let precip_probs : result::TTDashResult<Vec<GridForecastEntry>> = forecast.properties.probability_of_precipitation.values.iter().map(parse_grid_entry).collect();
-    let temps : result::TTDashResult<Vec<GridForecastEntry>> = forecast.properties.temperature.values.iter().map(parse_grid_entry).collect();
-
-    /*
-    let mut precip_probs = vec![];
-    let mut temps = vec![];
-    for entry in &forecast.properties.probability_of_precipitation.values {
-        let (time, duration) = parse_time_and_duration(&entry.valid_time)?;
-        precip_probs.push(GridForecastEntry{
-            time: time,
-            duration: duration,
-            value: entry.value,
-        });
-    }
-    for entry in &forecast.properties.probability_of_precipitation.values {
-        let (time, duration) = parse_time_and_duration(&entry.valid_time)?;
-        temps.push(GridForecastEntry{
-            time: time,
-            duration: duration,
-            value: entry.value,
-        });
-    }
-*/
+    let precip_probs : result::TTDashResult<Vec<GridForecastEntry>> =
+        forecast.properties.probability_of_precipitation.values.iter().map(parse_grid_entry).collect();
+    let temps : result::TTDashResult<Vec<GridForecastEntry>> =
+        forecast.properties.temperature.values.iter().map(parse_grid_entry).collect();
     return Ok(GridForecast{
         precip_prob: precip_probs?,
         temp: temps?,
@@ -227,4 +221,36 @@ pub fn fetch_hourly_forecast() -> result::TTDashResult<Vec<HourlyForecast>> {
         });
     }
     return Ok(result);
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate chrono;
+
+    use super::parse_duration;
+
+    #[test]
+    fn simple_time_durations() {
+        assert_eq!(chrono::Duration::hours(1), parse_duration("PT1H").unwrap());
+        assert_eq!(chrono::Duration::hours(2), parse_duration("PT2H").unwrap());
+        assert_eq!(chrono::Duration::hours(12), parse_duration("PT12H").unwrap());
+        assert_eq!(chrono::Duration::minutes(1), parse_duration("PT1M").unwrap());
+        assert_eq!(chrono::Duration::minutes(10), parse_duration("PT10M").unwrap());
+        assert_eq!(chrono::Duration::seconds(5), parse_duration("PT5S").unwrap());
+        assert_eq!(chrono::Duration::seconds(55), parse_duration("PT55S").unwrap());
+    }
+
+    #[test]
+    fn simple_date_durations() {
+        assert_eq!(chrono::Duration::days(1), parse_duration("P1D").unwrap());
+        assert_eq!(chrono::Duration::days(2), parse_duration("P2D").unwrap());
+        assert_eq!(chrono::Duration::days(12), parse_duration("P12D").unwrap());
+    }
+
+    #[test]
+    fn combination_durations() {
+        assert_eq!(chrono::Duration::minutes(90) + chrono::Duration::seconds(10),
+                   parse_duration("PT1H30M10S").unwrap());
+        assert_eq!(chrono::Duration::hours(36), parse_duration("P1DT12H").unwrap());
+    }
 }
