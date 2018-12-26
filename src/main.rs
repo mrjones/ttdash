@@ -376,29 +376,49 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
     use chrono::Timelike;
     use chrono::TimeZone;
 
-    let now = chrono::Utc::now();
-    let mut day_num = 0;
-
+    let left_x = 400;
+    let top_y = 240;
     let height = 50;
+
     let hour_width = 1;
     let day_width = 24 * hour_width + 5;
-    let max_width = hour_width * 24;
 
+    let mut day_num = 0;
     let mut last_day = None;
-
-    let left_x = 350;
-    let top_y = 100;
-
     let mut day_num_labels = std::collections::HashMap::new();
+
+    let mut min_t: Option<f32> = None;
+    let mut max_t: Option<f32> = None;
 
     let dense_forecast = weather::densify_grid_forecast(&grid_forecast)?;
 
     for (hour_ts, values) in &dense_forecast.hours {
         let local_time = chrono_tz::US::Eastern.timestamp(hour_ts.timestamp(), 0);
+        if last_day.is_some() && last_day.unwrap() != local_time.num_days_from_ce() {
+            // Ending an old day
+            if min_t.is_some()  && max_t.is_some() {
+                imageproc::drawing::draw_text_mut(
+                    imgbuf, styles.color_black, left_x + day_num * day_width + (8 * hour_width), (top_y + height + 25) as u32, scale(30.0), &styles.font_bold, &format!("{:.0}", max_t.unwrap()));
+                imageproc::drawing::draw_text_mut(
+                    imgbuf, styles.color_black, left_x + day_num * day_width + (8 * hour_width), (top_y + height + 50) as u32, scale(30.0), &styles.font_bold, &format!("{:.0}", min_t.unwrap()));
+            }
+
+
+            min_t = None;
+            max_t = None;
+        }
         if last_day.is_some() {
+            // Maybe start a new day
             day_num = day_num + (local_time.num_days_from_ce() - last_day.unwrap()) as u32;
         }
         last_day = Some(local_time.num_days_from_ce());
+
+        if min_t.is_none() || min_t.unwrap() > values.temperature {
+            min_t = Some(values.temperature)
+        }
+        if max_t.is_none() || max_t.unwrap() < values.temperature {
+            max_t = Some(values.temperature)
+        }
 
         // TODO(mrjones): Do this once per day, not once per hour.
         day_num_labels.insert(day_num, vec!["S", "M", "T", "W", "R", "F", "S"].get(local_time.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string());
@@ -422,13 +442,6 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
             },
             None => {},
         }
-        /*
-        imageproc::drawing::draw_line_segment_mut(
-            imgbuf,
-            (left_x as f32, (top_y + i * height) as f32),
-            ((left_x + 24 * hour_width) as f32, (top_y + i * height) as f32),
-            styles.color_black);
-         */
     }
 
     return Ok(());

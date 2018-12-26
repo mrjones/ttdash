@@ -73,7 +73,7 @@ pub struct DailyForecast {
     pub short_forecast: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GridForecastEntry {
     pub time: chrono::DateTime<chrono::FixedOffset>,
     pub duration: chrono::Duration,
@@ -90,11 +90,6 @@ pub struct GridForecast {
 pub struct DenseGridHour {
     pub precip_prob: f32,
     pub temperature: f32,
-}
-
-#[derive(Debug)]
-pub struct DenseGridDay {
-    pub hours: std::collections::BTreeMap<u32, DenseGridHour>,
 }
 
 #[derive(Debug)]
@@ -188,7 +183,15 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
     let precip_probs : result::TTDashResult<Vec<GridForecastEntry>> =
         forecast.properties.probability_of_precipitation.values.iter().map(parse_grid_entry).collect();
     let temps : result::TTDashResult<Vec<GridForecastEntry>> =
-        forecast.properties.temperature.values.iter().map(parse_grid_entry).collect();
+        forecast.properties.temperature.values.iter().
+        map(parse_grid_entry).
+        map(|e_res| {
+            return e_res.map(|e| {
+                let mut e2 = e.clone();
+                e2.value = 32.0 + e.value * 9.0 / 5.0;
+                return e2;
+            });
+        }).collect();
     return Ok(GridForecast{
         precip_prob: precip_probs?,
         temp: temps?,
