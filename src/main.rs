@@ -10,7 +10,9 @@ extern crate rppal;
 extern crate rusttype;
 #[macro_use]
 extern crate serde_derive;
+extern crate simple_server;
 
+mod debug;
 mod display;
 mod drawing;
 mod result;
@@ -103,16 +105,25 @@ fn main() {
     opts.optflag("d", "skip-display", "display to the epd device");
     opts.optflag("o", "one-shot", "keep the display up to date");
     opts.optopt("i", "save-image", "Where to put a png.", "FILENAME");
+    opts.optopt("p", "debug-port", "Port to run a debug server on.", "PORT");
 
     let matches = opts.parse(&args[1..]).expect("parse opts");
 
     let display = !matches.opt_present("skip-display");
     let one_shot = matches.opt_present("one-shot");
+    let debug_port = matches.opt_str("debug-port");
 
-    println!("Running. display={} one-shot={}", display, one_shot);
+    println!("Running. display={} one-shot={} debug-port={:?}", display, one_shot, debug_port);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
+
+    match debug_port {
+        Some(port) => {
+            std::thread::spawn(move || { debug::run_debug_server(&port); });
+        },
+        None => {},
+    }
 
     loop {
         match ttdash.one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
