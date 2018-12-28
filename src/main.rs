@@ -299,12 +299,13 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let day_width: u32 = 24 * hour_width + 5;
 
     let day_labels = vec!["S", "M", "T", "W", "R", "F", "S"];
-    let first_entry = weather_display.days.iter().nth(0);
-    let first_date = first_entry.map(|x| x.0);
-    let first_info = first_entry.map(|x| x.1);
+    let first_entry = weather_display.days.iter().nth(0).ok_or(
+        result::make_error("missing first entry"))?;
+    let first_date = first_entry.0;
+    let first_info = first_entry.1;
 
     for (date, info) in &weather_display.days {
-        let day_count = date.num_days_from_ce() - first_date.unwrap().num_days_from_ce();
+        let day_count = date.num_days_from_ce() - first_date.num_days_from_ce();
         let min_pct = (info.min_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
         let max_pct = (info.max_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
         let day_label = day_labels.get(date.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string();
@@ -346,20 +347,18 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
         }
     }
 
-    if first_info.is_some() {
-        imageproc::drawing::draw_text_mut(
-            imgbuf, styles.color_black,
-            /* x= */ left_x as u32,
-            /* y= */ (top_y - 80) as u32,
-            scale(80.0), &styles.font_bold,
-            &format!("{}° / {}°", first_info.unwrap().min_t, first_info.unwrap().max_t));
-    }
-
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
         /* x= */ 440, /* y= */ 0,
         scale(140.0),
         &styles.font_black, &format!("{}°", weather_display.current_t));
+
+    imageproc::drawing::draw_text_mut(
+        imgbuf, styles.color_black,
+        /* x= */ left_x as u32,
+        /* y= */ (top_y - 80) as u32,
+        scale(80.0), &styles.font_bold,
+        &format!("{}° / {}°", first_info.min_t, first_info.max_t));
 
     return Ok(());
 }
@@ -370,7 +369,7 @@ fn generate_image(data: &ProcessedData, weather_display: Option<&weather::Weathe
     draw_subway_arrivals(&mut imgbuf, styles, data);
 
     if weather_display.is_some() {
-        draw_weather(&mut imgbuf, styles, weather_display.unwrap()).unwrap();
+        draw_weather(&mut imgbuf, styles, weather_display.unwrap())?;
     }
 
     return Ok(image::imageops::crop(&mut imgbuf, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
