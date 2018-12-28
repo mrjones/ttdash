@@ -395,6 +395,8 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
     let overall_min_t = dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature;
     let overall_max_t = dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature;
 
+    let mut first_min_max_t: Option<(f32, f32)> = None;
+
     let t_bars_height = 40;
     let t_bars_offset = precip_bar_max_height + 30;
     for (hour_ts, values) in &dense_forecast.hours {
@@ -402,6 +404,9 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
         if last_day.is_some() && last_day.unwrap() != local_time.num_days_from_ce() {
             // Ending an old day
             if min_t.is_some()  && max_t.is_some() {
+                if first_min_max_t.is_none() {
+                    first_min_max_t = Some((min_t.unwrap(), max_t.unwrap()));
+                }
                 // In the range [0,1]
                 let min_pct = ((min_t.unwrap() - overall_min_t) / (overall_max_t - overall_min_t));
                 let max_pct = ((max_t.unwrap() - overall_min_t) / (overall_max_t - overall_min_t));
@@ -448,6 +453,12 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
                 (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + precip_bar_max_height - bar_height as i32) as i32)
                 .of_size(hour_width, bar_height),
             styles.color_black);
+    }
+
+    if first_min_max_t.is_some() {
+        let (min, max) = first_min_max_t.unwrap();
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black, left_x, (top_y - 80) as u32, scale(80.0), &styles.font_bold, &format!("{}° / {}°", min, max));
     }
 
     for i in 0..day_num {
