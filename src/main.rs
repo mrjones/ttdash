@@ -377,13 +377,13 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
     use chrono::TimeZone;
 
     let left_x = 400;
-    let top_y = 240;
+    let top_y = 200;
     let height = 50;
 
-    let hour_width = 1;
-    let day_width = 24 * hour_width + 5;
+    let hour_width: u32 = 1;
+    let day_width: u32 = 24 * hour_width + 5;
 
-    let mut day_num = 0;
+    let mut day_num: u32 = 0;
     let mut last_day = None;
     let mut day_num_labels = std::collections::HashMap::new();
 
@@ -397,12 +397,20 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
         if last_day.is_some() && last_day.unwrap() != local_time.num_days_from_ce() {
             // Ending an old day
             if min_t.is_some()  && max_t.is_some() {
-                imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, left_x + day_num * day_width + (8 * hour_width), (top_y + height + 25) as u32, scale(30.0), &styles.font_bold, &format!("{:.0}", max_t.unwrap()));
-                imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, left_x + day_num * day_width + (8 * hour_width), (top_y + height + 50) as u32, scale(30.0), &styles.font_bold, &format!("{:.0}", min_t.unwrap()));
-            }
+                // TODO(mrjones): Use dynamic range instead of 0-100?
+                imageproc::drawing::draw_filled_rect_mut(
+                    imgbuf, imageproc::rect::Rect::at(
+                        (left_x + day_num * day_width + 6 * hour_width) as i32,
+                        top_y + height + (100 - max_t.unwrap() as i32)).
+                        of_size(12 * hour_width as u32, (max_t.unwrap() - min_t.unwrap()) as u32),
+                    styles.color_black);
 
+                imageproc::drawing::draw_text_mut(
+                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + height + 75) as u32, scale(30.0), &styles.font, &format!("{:.0}", max_t.unwrap()));
+                imageproc::drawing::draw_text_mut(
+                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + height + 100) as u32, scale(30.0), &styles.font, &format!("{:.0}", min_t.unwrap()));
+
+            }
 
             min_t = None;
             max_t = None;
@@ -429,7 +437,7 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
         imageproc::drawing::draw_filled_rect_mut(
             imgbuf,
             imageproc::rect::Rect::at(
-                (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + height - bar_height) as i32)
+                (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + height - bar_height as i32) as i32)
                 .of_size(hour_width, bar_height),
             styles.color_black);
     }
