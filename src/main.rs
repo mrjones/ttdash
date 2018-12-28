@@ -378,7 +378,7 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
 
     let left_x = 400;
     let top_y = 200;
-    let height = 50;
+    let precip_bar_max_height = 50;
 
     let hour_width: u32 = 1;
     let day_width: u32 = 24 * hour_width + 5;
@@ -392,23 +392,31 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
 
     let dense_forecast = weather::densify_grid_forecast(&grid_forecast)?;
 
+    let overall_min_t = dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature;
+    let overall_max_t = dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature;
+
+    let t_bars_height = 40;
+    let t_bars_offset = precip_bar_max_height + 30;
     for (hour_ts, values) in &dense_forecast.hours {
         let local_time = chrono_tz::US::Eastern.timestamp(hour_ts.timestamp(), 0);
         if last_day.is_some() && last_day.unwrap() != local_time.num_days_from_ce() {
             // Ending an old day
             if min_t.is_some()  && max_t.is_some() {
-                // TODO(mrjones): Use dynamic range instead of 0-100?
+                // In the range [0,1]
+                let min_pct = ((min_t.unwrap() - overall_min_t) / (overall_max_t - overall_min_t));
+                let max_pct = ((max_t.unwrap() - overall_min_t) / (overall_max_t - overall_min_t));
+
                 imageproc::drawing::draw_filled_rect_mut(
                     imgbuf, imageproc::rect::Rect::at(
                         (left_x + day_num * day_width + 6 * hour_width) as i32,
-                        top_y + height + (100 - max_t.unwrap() as i32)).
-                        of_size(12 * hour_width as u32, (max_t.unwrap() - min_t.unwrap()) as u32),
-                    styles.color_black);
+                        top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
+                        of_size(12 * hour_width as u32, (t_bars_height as f32 * (max_pct - min_pct)) as u32),
+                styles.color_black);
 
                 imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + height + 75) as u32, scale(30.0), &styles.font, &format!("{:.0}", max_t.unwrap()));
+                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + precip_bar_max_height + 75) as u32, scale(30.0), &styles.font, &format!("{:.0}", max_t.unwrap()));
                 imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + height + 100) as u32, scale(30.0), &styles.font, &format!("{:.0}", min_t.unwrap()));
+                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + precip_bar_max_height + 100) as u32, scale(30.0), &styles.font, &format!("{:.0}", min_t.unwrap()));
 
             }
 
@@ -432,12 +440,12 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
         day_num_labels.insert(day_num, vec!["S", "M", "T", "W", "R", "F", "S"].get(local_time.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string());
 
         let local_hour = local_time.hour();
-        let bar_height = std::cmp::max(1, (height as f32 * (values.precip_prob / 100.0)) as u32);
+        let bar_height = std::cmp::max(1, (precip_bar_max_height as f32 * (values.precip_prob / 100.0)) as u32);
 
         imageproc::drawing::draw_filled_rect_mut(
             imgbuf,
             imageproc::rect::Rect::at(
-                (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + height - bar_height as i32) as i32)
+                (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + precip_bar_max_height - bar_height as i32) as i32)
                 .of_size(hour_width, bar_height),
             styles.color_black);
     }
@@ -446,7 +454,7 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_foreca
         match day_num_labels.get(&i) {
             Some(label) => {
                 imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, left_x + i * day_width + (8 * hour_width), (top_y + height) as u32, scale(30.0), &styles.font_bold, label);
+                    imgbuf, styles.color_black, left_x + i * day_width + (8 * hour_width), (top_y + precip_bar_max_height) as u32, scale(30.0), &styles.font_bold, label);
             },
             None => {},
         }
