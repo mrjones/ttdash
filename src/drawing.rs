@@ -6,7 +6,7 @@ extern crate rusttype;
 extern crate std;
 
 use result;
-use structs;
+use subway;
 use weather;
 
 pub struct Styles<'a> {
@@ -23,7 +23,7 @@ pub struct Styles<'a> {
 const EPD_WIDTH: usize = 640;
 const EPD_HEIGHT: usize = 384;
 
-pub fn generate_image(data: &structs::ProcessedData,
+pub fn generate_image(data: &subway::ProcessedData,
                       weather_display: Option<&weather::WeatherDisplay>,
                       styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
@@ -38,7 +38,7 @@ pub fn generate_image(data: &structs::ProcessedData,
 }
 
 
-fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &structs::ProcessedData) {
+fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &subway::ProcessedData) {
     let now = chrono::Utc::now().timestamp();
 
     imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);

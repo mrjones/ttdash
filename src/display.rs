@@ -5,6 +5,8 @@ extern crate std;
 use rppal::gpio::{Gpio, Level, Mode};
 use rppal::spi::{Spi};
 
+use result;
+
 const RST_PIN : u8 = 17;
 const DC_PIN : u8 = 25;
 const CS_PIN : u8 = 8;
@@ -22,6 +24,22 @@ const VCOM_AND_DATA_INTERVAL_SETTING : u8 = 0x50;
 const TCON_SETTING : u8 = 0x60;
 const TCON_RESOLUTION : u8 = 0x61;
 const VCM_DC_SETTING : u8 = 0x82;
+
+pub fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
+    let mut gpio = rppal::gpio::Gpio::new()?;
+
+    // Don't forget to enable SPI with sudo raspi-config
+    let mut spi = rppal::spi::Spi::new(
+        rppal::spi::Bus::Spi0,
+        rppal::spi::SlaveSelect::Ss0,
+        2000000,
+        rppal::spi::Mode::Mode0)?;
+
+    init_display(&mut gpio, &mut spi);
+    display_image(&mut gpio, &mut spi, image);
+
+    return Ok(());
+}
 
 fn send_command(gpio: &mut Gpio, spi: &mut Spi, command: u8) {
     gpio.write(DC_PIN, Level::Low);
@@ -46,7 +64,7 @@ fn wait_until_idle(gpio: &mut Gpio) {
     }
 }
 
-pub fn init_display(gpio: &mut Gpio, spi: &mut Spi) {
+fn init_display(gpio: &mut Gpio, spi: &mut Spi) {
     gpio.set_mode(RST_PIN, Mode::Output);
     gpio.set_mode(DC_PIN, Mode::Output);
     gpio.set_mode(CS_PIN, Mode::Output);
@@ -101,7 +119,7 @@ pub fn init_display(gpio: &mut Gpio, spi: &mut Spi) {
     send_command(gpio, spi, DATA_START_TRANSMISSION);
 }
 
-pub fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
+fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
     let mut pixel_in_progress: u8 = 0;
 
     use image::Pixel;

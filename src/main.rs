@@ -14,66 +14,10 @@ extern crate serde_derive;
 mod display;
 mod drawing;
 mod result;
-mod structs;
+mod subway;
 mod weather;
 mod webclient_api;
 
-fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
-    let url = format!("http://linode.mrjon.es:3838/api/station/028").to_string();
-    let mut response = reqwest::get(&url)?;
-    let mut response_body = vec![];
-    use std::io::Read;
-    response.read_to_end(&mut response_body)?;
-    let proto = protobuf::parse_from_bytes::<webclient_api::StationStatus>(
-        &response_body)?;
-    return Ok(proto);
-}
-
-fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<structs::ProcessedData> {
-    let mut arrivals = vec![];
-    let now = chrono::Utc::now().timestamp();
-    for line in data.get_line() {
-        if line.get_direction() == webclient_api::Direction::UPTOWN {
-            for arrival in line.get_arrivals() {
-                if arrival.get_timestamp() > now {
-                    arrivals.push((arrival.get_timestamp(), line.get_line().to_string()));
-                }
-            }
-        }
-    }
-
-    if arrivals.len() == 0 {
-        return Ok(structs::ProcessedData::empty());
-    } else {
-        arrivals.sort_by_key(|x| x.0);
-        let first_arrival_ts = arrivals[0].0;
-        let first_arrival_line = arrivals[0].1.to_string();
-
-        return Ok(structs::ProcessedData{
-            upcoming_trains: arrivals,
-            big_countdown: Some(drawing::countdown_summary(now, first_arrival_ts)),
-            big_countdown_line: Some(first_arrival_line),
-            station_name: data.get_name().to_string(),
-        });
-    }
-}
-
-
-fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
-    let mut gpio = rppal::gpio::Gpio::new()?;
-
-    // Don't forget to enable SPI with sudo raspi-config
-    let mut spi = rppal::spi::Spi::new(
-        rppal::spi::Bus::Spi0,
-        rppal::spi::SlaveSelect::Ss0,
-        2000000,
-        rppal::spi::Mode::Mode0)?;
-
-    display::init_display(&mut gpio, &mut spi);
-    display::display_image(&mut gpio, &mut spi, image);
-
-    return Ok(());
-}
 
 struct TTDash<'a> {
     weather_display: Option<weather::WeatherDisplay>,
@@ -115,9 +59,8 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<String>, prev_processed_data: &structs::ProcessedData) -> result::TTDashResult<structs::ProcessedData>{
-        let raw_data = fetch_data()?;
-        let processed_data = process_data(&raw_data)?;
+    fn one_iteration(&mut self, display: bool, png_out: Option<String>, prev_processed_data: &subway::ProcessedData) -> result::TTDashResult<subway::ProcessedData>{
+        let processed_data = subway::fetch_and_process_data()?;
 
         // TODO(mrjones): Make this async or something?
         // TODO(mrjones): Don't fetch every time
@@ -143,7 +86,7 @@ impl<'a> TTDash<'a> {
                      prev_processed_data.big_countdown,
                      processed_data.big_countdown);
             if display {
-                setup_and_display_image(&imgbuf)?;
+                display::setup_and_display_image(&imgbuf)?;
             }
         } else {
             println!("Big num didn't change, not refreshing");
@@ -168,7 +111,7 @@ fn main() {
 
     println!("Running. display={} one-shot={}", display, one_shot);
 
-    let mut prev_processed_data = structs::ProcessedData::empty();
+    let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
 
     loop {
