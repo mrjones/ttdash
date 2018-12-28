@@ -100,7 +100,6 @@ pub struct DenseGridForecast {
     pub hours: std::collections::BTreeMap<chrono::DateTime<chrono::FixedOffset>, DenseGridHour>,
 }
 
-
 pub struct WeatherDisplayDay {
     pub min_t: f32,
     pub max_t: f32,
@@ -113,8 +112,6 @@ pub struct WeatherDisplay {
     pub current_t: f32,
 
     pub days: std::collections::BTreeMap<chrono::Date<chrono_tz::Tz>, WeatherDisplayDay>,
-
-    pub legacy_grid: DenseGridForecast,
 }
 
 pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
@@ -177,7 +174,6 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
         overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature,
         current_t: current_t.unwrap(),
         days: days,
-        legacy_grid: dense_forecast,
     });
 }
 
