@@ -5,6 +5,7 @@
 // "forecastGridData": "https://api.weather.gov/gridpoints/OKX/32,34",
 // "observationStations": "https://api.weather.gov/gridpoints/OKX/32,34/stations",
 extern crate chrono;
+extern crate chrono_tz;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
@@ -95,6 +96,75 @@ pub struct DenseGridHour {
 #[derive(Debug)]
 pub struct DenseGridForecast {
     pub hours: std::collections::BTreeMap<chrono::DateTime<chrono::FixedOffset>, DenseGridHour>,
+}
+
+
+pub struct WeatherDisplayDay {
+    pub min_t: f32,
+    pub max_t: f32,
+    pub precip_by_hour: std::collections::BTreeMap<u32, f32>,
+}
+
+pub struct WeatherDisplay {
+    pub overall_min_t: f32,
+    pub overall_max_t: f32,
+
+    pub days: std::collections::BTreeMap<chrono::Date<chrono_tz::Tz>, WeatherDisplayDay>,
+
+    pub legacy_grid: DenseGridForecast,
+}
+
+pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
+    use chrono::Datelike;
+    use chrono::Timelike;
+    use chrono::TimeZone;
+
+    let grid_forecast = fetch_grid_forecast()?;
+    let dense_forecast = densify_grid_forecast(&grid_forecast)?;
+
+    let mut days = std::collections::BTreeMap::new();
+
+    let mut current_date = None;
+    let mut min_t = None;
+    let mut max_t = None;
+    let mut precip_by_hour = std::collections::BTreeMap::new();
+
+    for (hour_ts, values) in &dense_forecast.hours {
+        let local_time = chrono_tz::US::Eastern.timestamp(hour_ts.timestamp(), 0);
+        if Some(local_time.date()) != current_date {
+            if current_date.is_some() {
+                // Ending an old day
+                days.insert(current_date.unwrap(), WeatherDisplayDay{
+                    min_t: min_t.unwrap(),
+                    max_t: max_t.unwrap(),
+                    precip_by_hour: precip_by_hour,
+                });
+            }
+
+            // Starting a new day
+            current_date = Some(local_time.date());
+            min_t = None;
+            max_t = None;
+            precip_by_hour = std::collections::BTreeMap::new();
+        }
+
+        if min_t.is_none() || values.temperature < min_t.unwrap() {
+            min_t = Some(values.temperature);
+        }
+
+        if max_t.is_none() || values.temperature > max_t.unwrap() {
+            max_t = Some(values.temperature);
+        }
+
+        precip_by_hour.insert(local_time.hour(), values.precip_prob);
+    }
+
+    return Ok(WeatherDisplay{
+        overall_min_t: dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature,
+        overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature,
+        days: days,
+        legacy_grid: dense_forecast,
+    });
 }
 
 // Parses: "PT1H" -> 1 hour, "PT13H" -> 13 hours, etc

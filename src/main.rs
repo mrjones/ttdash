@@ -371,116 +371,85 @@ fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_fore
     }
 }
 
-fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, grid_forecast: &weather::GridForecast) -> result::TTDashResult<()> {
-    use chrono::Datelike;
-    use chrono::Timelike;
-    use chrono::TimeZone;
-
+fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
     let left_x = 400;
     let top_y = 200;
+
     let precip_bar_max_height = 50;
+
+    let t_bars_height = 40;
+    let t_bars_offset = precip_bar_max_height + 30;
 
     let hour_width: u32 = 1;
     let day_width: u32 = 24 * hour_width + 5;
 
-    let mut day_num: u32 = 0;
-    let mut last_day = None;
-    let mut day_num_labels = std::collections::HashMap::new();
+    let day_labels = vec!["S", "M", "T", "W", "R", "F", "S"];
+    let first_entry = weather_display.days.iter().nth(0);
+    let first_date = first_entry.map(|x| x.0);
+    let first_info = first_entry.map(|x| x.1);
 
-    let mut min_t: Option<f32> = None;
-    let mut max_t: Option<f32> = None;
+    for (date, info) in &weather_display.days {
+        let day_count = date.num_days_from_ce() - first_date.unwrap().num_days_from_ce();
+        let min_pct = ((info.min_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t));
+        let max_pct = ((info.max_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t));
+        let day_label = day_labels.get(date.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string();
 
-    let dense_forecast = weather::densify_grid_forecast(&grid_forecast)?;
-
-    let overall_min_t = dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature;
-    let overall_max_t = dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature;
-
-    let mut first_min_max_t: Option<(f32, f32)> = None;
-
-    let t_bars_height = 40;
-    let t_bars_offset = precip_bar_max_height + 30;
-    for (hour_ts, values) in &dense_forecast.hours {
-        let local_time = chrono_tz::US::Eastern.timestamp(hour_ts.timestamp(), 0);
-        if last_day.is_some() && last_day.unwrap() != local_time.num_days_from_ce() {
-            // Ending an old day
-            if min_t.is_some()  && max_t.is_some() {
-                if first_min_max_t.is_none() {
-                    first_min_max_t = Some((min_t.unwrap(), max_t.unwrap()));
-                }
-                // In the range [0,1]
-                let min_pct = ((min_t.unwrap() - overall_min_t) / (overall_max_t - overall_min_t));
-                let max_pct = ((max_t.unwrap() - overall_min_t) / (overall_max_t - overall_min_t));
-
-                imageproc::drawing::draw_filled_rect_mut(
-                    imgbuf, imageproc::rect::Rect::at(
-                        (left_x + day_num * day_width + 6 * hour_width) as i32,
-                        top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
-                        of_size(12 * hour_width as u32, (t_bars_height as f32 * (max_pct - min_pct)) as u32),
-                styles.color_black);
-
-                imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + precip_bar_max_height + 75) as u32, scale(30.0), &styles.font, &format!("{:.0}", max_t.unwrap()));
-                imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, (left_x + day_num * day_width + (8 * hour_width)) as u32, (top_y + precip_bar_max_height + 100) as u32, scale(30.0), &styles.font, &format!("{:.0}", min_t.unwrap()));
-
-            }
-
-            min_t = None;
-            max_t = None;
-        }
-        if last_day.is_some() {
-            // Maybe start a new day
-            day_num = day_num + (local_time.num_days_from_ce() - last_day.unwrap()) as u32;
-        }
-        last_day = Some(local_time.num_days_from_ce());
-
-        if min_t.is_none() || min_t.unwrap() > values.temperature {
-            min_t = Some(values.temperature)
-        }
-        if max_t.is_none() || max_t.unwrap() < values.temperature {
-            max_t = Some(values.temperature)
-        }
-
-        // TODO(mrjones): Do this once per day, not once per hour.
-        day_num_labels.insert(day_num, vec!["S", "M", "T", "W", "R", "F", "S"].get(local_time.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string());
-
-        let local_hour = local_time.hour();
-        let bar_height = std::cmp::max(1, (precip_bar_max_height as f32 * (values.precip_prob / 100.0)) as u32);
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black,
+            /* x= */ left_x as u32 + day_count as u32 * day_width as u32 + (8 * hour_width),
+            /* y= */ (top_y + precip_bar_max_height) as u32,
+            scale(30.0), &styles.font_bold, &day_label);
 
         imageproc::drawing::draw_filled_rect_mut(
-            imgbuf,
-            imageproc::rect::Rect::at(
-                (left_x + day_num * day_width + local_hour * hour_width) as i32, (top_y + precip_bar_max_height - bar_height as i32) as i32)
-                .of_size(hour_width, bar_height),
+            imgbuf, imageproc::rect::Rect::at(
+                (left_x + day_count * day_width as i32 + 6 * hour_width as i32),
+                top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
+                of_size(12 * hour_width as u32, (t_bars_height as f32 * (max_pct - min_pct)) as u32),
             styles.color_black);
-    }
 
-    if first_min_max_t.is_some() {
-        let (min, max) = first_min_max_t.unwrap();
         imageproc::drawing::draw_text_mut(
-            imgbuf, styles.color_black, left_x, (top_y - 80) as u32, scale(80.0), &styles.font_bold, &format!("{}° / {}°", min, max));
+            imgbuf, styles.color_black,
+            /* x = */ (left_x + day_count * day_width as i32 + (8 * hour_width as i32)) as u32,
+            /* y = */ (top_y + precip_bar_max_height + 75) as u32,
+            scale(30.0), &styles.font, &format!("{:.0}", info.max_t));
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black,
+            /* x = */ (left_x + day_count * day_width as i32 + (8 * hour_width as i32)) as u32,
+            /* y = */ (top_y + precip_bar_max_height + 100) as u32,
+            scale(30.0), &styles.font, &format!("{:.0}", info.min_t));
+
+        for (hour, precip_prob) in &info.precip_by_hour {
+            let bar_height = std::cmp::max(1, (precip_bar_max_height as f32 * (*precip_prob / 100.0)) as u32);
+
+            imageproc::drawing::draw_filled_rect_mut(
+                imgbuf,
+                imageproc::rect::Rect::at(
+                    /* x= */ left_x + day_count as i32 * day_width as i32 + *hour as i32 * hour_width as i32,
+                    /* y= */ top_y + precip_bar_max_height - bar_height as i32)
+                    .of_size(hour_width, bar_height),
+                styles.color_black);
+        }
     }
 
-    for i in 0..day_num {
-        match day_num_labels.get(&i) {
-            Some(label) => {
-                imageproc::drawing::draw_text_mut(
-                    imgbuf, styles.color_black, left_x + i * day_width + (8 * hour_width), (top_y + precip_bar_max_height) as u32, scale(30.0), &styles.font_bold, label);
-            },
-            None => {},
-        }
+    if first_info.is_some() {
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black,
+            /* x= */ left_x as u32,
+            /* y= */ (top_y - 80) as u32,
+            scale(80.0), &styles.font_bold,
+            &format!("{}° / {}°", first_info.unwrap().min_t, first_info.unwrap().max_t));
     }
 
     return Ok(());
 }
 
-fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, grid_forecast: Option<&weather::GridForecast>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
+fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, weather_display: Option<&weather::WeatherDisplay>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
 
     draw_subway_arrivals(&mut imgbuf, styles, data);
 
-    if grid_forecast.is_some() {
-        draw_weather_grid(&mut imgbuf, styles, grid_forecast.unwrap()).unwrap();
+    if weather_display.is_some() {
+        draw_weather_grid(&mut imgbuf, styles, weather_display.unwrap()).unwrap();
     }
 
 //    if daily_forecast.is_some() {
@@ -530,7 +499,7 @@ struct Styles<'a> {
 struct TTDash<'a> {
     daily_forecast: Option<Vec<weather::DailyForecast>>,
     hourly_forecast: Option<Vec<weather::HourlyForecast>>,
-    grid_forecast: Option<weather::GridForecast>,
+    weather_display: Option<weather::WeatherDisplay>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
     styles: Styles<'a>,
 }
@@ -549,7 +518,7 @@ impl<'a> TTDash<'a> {
         return TTDash {
             daily_forecast: None,
             hourly_forecast: None,
-            grid_forecast: None,
+            weather_display: None,
             forecast_timestamp: chrono::Utc::now(),
 
             styles: Styles{
@@ -567,7 +536,7 @@ impl<'a> TTDash<'a> {
     fn update_weather(&mut self, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
         self.hourly_forecast = Some(weather::fetch_hourly_forecast()?);
         self.daily_forecast = Some(weather::fetch_daily_forecast()?);
-        self.grid_forecast = Some(weather::fetch_grid_forecast()?);
+        self.weather_display = Some(weather::get_weather_display()?);
         self.forecast_timestamp = *now;
 
         return Ok(());
@@ -591,7 +560,7 @@ impl<'a> TTDash<'a> {
             &processed_data,
             self.hourly_forecast.as_ref(),
             self.daily_forecast.as_ref(),
-            self.grid_forecast.as_ref(),
+            self.weather_display.as_ref(),
             &self.styles)?;
 
         if png_out.is_some() {
