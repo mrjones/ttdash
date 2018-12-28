@@ -284,94 +284,9 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &P
 
 }
 
-fn draw_daily_forecast(imgbuf: &mut image::GrayImage, styles: &Styles, daily_forecast: &Vec<weather::DailyForecast>) {
-    let weather_x = 390;
-    let weather_y = 150;
+fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
+    use chrono::Datelike;
 
-    let y_step = 80;
-    let mut y = weather_y;
-    for ref day in daily_forecast.iter().take(3) {
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x, y + 5, scale(45.0), &styles.font_black, format!("{}°", day.temperature).as_ref());
-
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x + 55, y, scale(30.0), &styles.font_bold, &day.label);
-//        imageproc::drawing::draw_line_segment_mut(imgbuf, ((weather_x + 55) as f32, (y + 30) as f32), (EPD_WIDTH as f32 - 10.0, (y + 30) as f32), styles.color_black);
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, weather_x + 55, y + 25, scale(30.0), &styles.font, &day.short_forecast);
-        y = y + y_step;
-    }
-}
-
-fn draw_big_current_temperature(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_forecast: &Vec<weather::HourlyForecast>) {
-    let temp_str = hourly_forecast.first()
-        .map(|hr| format!("{}°", hr.temperature))
-        .unwrap_or("-".to_string());
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 440, 0, scale(140.0), &styles.font_black, &temp_str);
-}
-
-fn draw_hourly_trend(imgbuf: &mut image::GrayImage, styles: &Styles, hourly_forecast: &Vec<weather::HourlyForecast>) {
-    let weather_x = 440.0;
-    let weather_y = 110.0;  // Note: This is the _bottom_
-    let weather_width = 170.0;
-    let weather_height = 70.0;
-
-    let min_t = hourly_forecast.iter()
-        .take(24)
-        .map(|x| x.temperature)
-        .min()
-        .unwrap_or(1);
-    let max_t = hourly_forecast.iter()
-        .take(24)
-        .map(|x| x.temperature)
-        .max()
-        .unwrap_or(1);
-
-    let x_step = weather_width / 24.0;
-
-    let mut x = weather_x;
-    let mut last_x = None;
-    let mut last_y = None;
-
-    let mut last_t = None;
-    let mut trending_up = None;
-
-    for hour in hourly_forecast.iter().take(24) {
-        let y_fraction = (hour.temperature - min_t) as f32 / (max_t - min_t) as f32;
-        let y = weather_y - (y_fraction * weather_height);
-        if last_x.is_some() && last_y.is_some() {
-            imageproc::drawing::draw_line_segment_mut(
-                imgbuf, (last_x.unwrap(), last_y.unwrap()), (x, y), styles.color_black);
-        }
-
-        if last_t.is_none() {
-            imageproc::drawing::draw_text_mut(
-                imgbuf, styles.color_black, (x - 40.0) as u32, (y - 10.0) as u32, scale(30.0), &styles.font, format!("{}°", hour.temperature).as_ref());
-        }
-
-        if last_t.is_some() {
-            let last_t = last_t.unwrap();
-            if hour.temperature < last_t {
-                if trending_up == Some(true) {
-                    imageproc::drawing::draw_text_mut(
-                        imgbuf, styles.color_black, (x - x_step) as u32, (weather_y - weather_height - 30.0) as u32, scale(30.0), &styles.font, format!("{}°", last_t).as_ref());
-                }
-                trending_up = Some(false);
-            } else if hour.temperature > last_t {
-                if trending_up == Some(false) {
-                    imageproc::drawing::draw_text_mut(
-                        imgbuf, styles.color_black, (x - x_step) as u32, (weather_y) as u32, scale(30.0), &styles.font, format!("{}°", last_t).as_ref());
-                }
-                trending_up = Some(true);
-            }
-        }
-
-        last_t = Some(hour.temperature);
-        last_x = Some(x);
-        last_y = Some(y);
-
-        x = x + x_step;
-    }
-}
-
-fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
     let left_x = 400;
     let top_y = 200;
 
@@ -390,8 +305,8 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, weather_dis
 
     for (date, info) in &weather_display.days {
         let day_count = date.num_days_from_ce() - first_date.unwrap().num_days_from_ce();
-        let min_pct = ((info.min_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t));
-        let max_pct = ((info.max_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t));
+        let min_pct = (info.min_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
+        let max_pct = (info.max_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
         let day_label = day_labels.get(date.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string();
 
         imageproc::drawing::draw_text_mut(
@@ -402,7 +317,7 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, weather_dis
 
         imageproc::drawing::draw_filled_rect_mut(
             imgbuf, imageproc::rect::Rect::at(
-                (left_x + day_count * day_width as i32 + 6 * hour_width as i32),
+                left_x + day_count * day_width as i32 + 6 * hour_width as i32,
                 top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
                 of_size(12 * hour_width as u32, (t_bars_height as f32 * (max_pct - min_pct)) as u32),
             styles.color_black);
@@ -440,31 +355,23 @@ fn draw_weather_grid(imgbuf: &mut image::GrayImage, styles: &Styles, weather_dis
             &format!("{}° / {}°", first_info.unwrap().min_t, first_info.unwrap().max_t));
     }
 
+    imageproc::drawing::draw_text_mut(
+        imgbuf, styles.color_black,
+        /* x= */ 440, /* y= */ 0,
+        scale(140.0),
+        &styles.font_black, &format!("{}°", weather_display.current_t));
+
     return Ok(());
 }
 
-fn generate_image(data: &ProcessedData, hourly_forecast: Option<&Vec<weather::HourlyForecast>>, daily_forecast: Option<&Vec<weather::DailyForecast>>, weather_display: Option<&weather::WeatherDisplay>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
+fn generate_image(data: &ProcessedData, weather_display: Option<&weather::WeatherDisplay>, styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
 
     draw_subway_arrivals(&mut imgbuf, styles, data);
 
     if weather_display.is_some() {
-        draw_weather_grid(&mut imgbuf, styles, weather_display.unwrap()).unwrap();
+        draw_weather(&mut imgbuf, styles, weather_display.unwrap()).unwrap();
     }
-
-//    if daily_forecast.is_some() {
-//        draw_daily_forecast(&mut imgbuf, styles, daily_forecast.unwrap());
-//    }
-
-    if hourly_forecast.is_some() {
-        draw_big_current_temperature(&mut imgbuf, styles, hourly_forecast.unwrap());
-    }
-
-    /*
-    if hourly_forecast.is_some() {
-        draw_hourly_trend(&mut imgbuf, styles, hourly_forecast.unwrap());
-    }
-    */
 
     return Ok(image::imageops::crop(&mut imgbuf, 0, 0, EPD_WIDTH as u32, EPD_HEIGHT as u32).to_image());
 }
@@ -497,8 +404,6 @@ struct Styles<'a> {
 }
 
 struct TTDash<'a> {
-    daily_forecast: Option<Vec<weather::DailyForecast>>,
-    hourly_forecast: Option<Vec<weather::HourlyForecast>>,
     weather_display: Option<weather::WeatherDisplay>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
     styles: Styles<'a>,
@@ -516,8 +421,6 @@ impl<'a> TTDash<'a> {
         let font_bold = rusttype::FontCollection::from_bytes(font_bold).unwrap().into_font().unwrap();
 
         return TTDash {
-            daily_forecast: None,
-            hourly_forecast: None,
             weather_display: None,
             forecast_timestamp: chrono::Utc::now(),
 
@@ -534,8 +437,6 @@ impl<'a> TTDash<'a> {
     }
 
     fn update_weather(&mut self, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
-        self.hourly_forecast = Some(weather::fetch_hourly_forecast()?);
-        self.daily_forecast = Some(weather::fetch_daily_forecast()?);
         self.weather_display = Some(weather::get_weather_display()?);
         self.forecast_timestamp = *now;
 
@@ -549,7 +450,7 @@ impl<'a> TTDash<'a> {
         // TODO(mrjones): Make this async or something?
         // TODO(mrjones): Don't fetch every time
         let now = chrono::Utc::now();
-        if self.hourly_forecast.is_none() || (now.timestamp() - self.forecast_timestamp.timestamp() > 60 * 30) {
+        if self.weather_display.is_none() || (now.timestamp() - self.forecast_timestamp.timestamp() > 60 * 30) {
             match self.update_weather(&now) {
                 Ok(_) => {},
                 Err(err) => println!("Error: {:?}", err),
@@ -558,8 +459,6 @@ impl<'a> TTDash<'a> {
 
         let imgbuf = generate_image(
             &processed_data,
-            self.hourly_forecast.as_ref(),
-            self.daily_forecast.as_ref(),
             self.weather_display.as_ref(),
             &self.styles)?;
 

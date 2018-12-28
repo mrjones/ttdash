@@ -62,6 +62,7 @@ struct NwsApiGridForecast {
     properties: NwsApiGridProperties,
 }
 
+/*
 pub struct HourlyForecast {
     pub time: chrono::DateTime<chrono::FixedOffset>,
     pub temperature: i32,
@@ -73,6 +74,7 @@ pub struct DailyForecast {
     pub temperature: i32,
     pub short_forecast: String,
 }
+*/
 
 #[derive(Debug, Clone)]
 pub struct GridForecastEntry {
@@ -108,6 +110,7 @@ pub struct WeatherDisplayDay {
 pub struct WeatherDisplay {
     pub overall_min_t: f32,
     pub overall_max_t: f32,
+    pub current_t: f32,
 
     pub days: std::collections::BTreeMap<chrono::Date<chrono_tz::Tz>, WeatherDisplayDay>,
 
@@ -115,7 +118,6 @@ pub struct WeatherDisplay {
 }
 
 pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
-    use chrono::Datelike;
     use chrono::Timelike;
     use chrono::TimeZone;
 
@@ -128,9 +130,16 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
     let mut min_t = None;
     let mut max_t = None;
     let mut precip_by_hour = std::collections::BTreeMap::new();
+    let now_ts = chrono::Utc::now().timestamp() - 3600;
 
-    for (hour_ts, values) in &dense_forecast.hours {
-        let local_time = chrono_tz::US::Eastern.timestamp(hour_ts.timestamp(), 0);
+    let mut current_t = None;
+
+    for (hour, values) in &dense_forecast.hours {
+        let local_time = chrono_tz::US::Eastern.timestamp(hour.timestamp(), 0);
+        if hour.timestamp() < now_ts {
+            continue;
+        }
+
         if Some(local_time.date()) != current_date {
             if current_date.is_some() {
                 // Ending an old day
@@ -148,6 +157,10 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
             precip_by_hour = std::collections::BTreeMap::new();
         }
 
+        if current_t.is_none() {
+            current_t = Some(values.temperature);
+        }
+
         if min_t.is_none() || values.temperature < min_t.unwrap() {
             min_t = Some(values.temperature);
         }
@@ -162,6 +175,7 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
     return Ok(WeatherDisplay{
         overall_min_t: dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature,
         overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature,
+        current_t: current_t.unwrap(),
         days: days,
         legacy_grid: dense_forecast,
     });
@@ -174,7 +188,7 @@ fn parse_duration(input: &str) -> result::TTDashResult<chrono::Duration> {
     let required_prefix = "P";
 
     if !input.starts_with(required_prefix) {
-        return Err(result::MakeError(&format!("Malformed duration {}", input)));
+        return Err(result::make_error(&format!("Malformed duration {}", input)));
     }
 
     // TODO(mrjones): File bug against maplit, for not being able to use hashmap! here
@@ -207,7 +221,7 @@ fn parse_duration(input: &str) -> result::TTDashResult<chrono::Duration> {
                             acc = 0;
                         },
                         None => {
-                            return Err(result::MakeError(&format!("Bad duration string '{}' at char #{}. ", input, i)));
+                            return Err(result::make_error(&format!("Bad duration string '{}' at char #{}. ", input, i)));
                         }
                     }
                 },
@@ -222,7 +236,7 @@ fn parse_time_and_duration(input: &str) -> result::TTDashResult<(chrono::DateTim
     let parts: Vec<&str> = input.split("/").collect();
 
     if parts.len() < 2 {
-        return Err(result::MakeError(&format!(
+        return Err(result::make_error(&format!(
             "Couldn't parse time+duration string: '{}'", input)));
     }
 
@@ -296,6 +310,7 @@ pub fn densify_grid_forecast(sparse: &GridForecast) -> result::TTDashResult<Dens
     return Ok(result);
 }
 
+/*
 pub fn fetch_daily_forecast() -> result::TTDashResult<Vec<DailyForecast>> {
     use std::io::Read;
 
@@ -316,7 +331,6 @@ pub fn fetch_daily_forecast() -> result::TTDashResult<Vec<DailyForecast>> {
         });
     }
     return Ok(result);
-
 }
 
 pub fn fetch_hourly_forecast() -> result::TTDashResult<Vec<HourlyForecast>> {
@@ -339,6 +353,7 @@ pub fn fetch_hourly_forecast() -> result::TTDashResult<Vec<HourlyForecast>> {
     }
     return Ok(result);
 }
+*/
 
 #[cfg(test)]
 mod tests {

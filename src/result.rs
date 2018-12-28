@@ -19,7 +19,7 @@ pub enum TTDashError {
     SpiError(rppal::spi::Error),
 }
 
-pub fn MakeError(s: &str) -> TTDashError{
+pub fn make_error(s: &str) -> TTDashError{
     return TTDashError::SimpleError(s.to_string());
 }
 
