@@ -138,13 +138,16 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
         }
 
         if Some(local_time.date()) != current_date {
-            if current_date.is_some() {
-                // Ending an old day
-                days.insert(current_date.unwrap(), WeatherDisplayDay{
-                    min_t: min_t.unwrap(),
-                    max_t: max_t.unwrap(),
-                    precip_by_hour: precip_by_hour,
-                });
+            match current_date {
+                Some(current_date) => {
+                    // Ending an old day
+                    days.insert(current_date, WeatherDisplayDay{
+                        min_t: min_t.unwrap(),
+                        max_t: max_t.unwrap(),
+                        precip_by_hour: precip_by_hour,
+                    });
+                },
+                None => {},
             }
 
             // Starting a new day
@@ -170,9 +173,9 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
     }
 
     return Ok(WeatherDisplay{
-        overall_min_t: dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature,
-        overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).unwrap().1.temperature,
-        current_t: current_t.unwrap(),
+        overall_min_t: dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No data"))?.1.temperature,
+        overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No data"))?.1.temperature,
+        current_t: current_t.ok_or(result::make_error("No data"))?,
         days: days,
     });
 }
