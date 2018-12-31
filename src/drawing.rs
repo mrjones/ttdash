@@ -135,7 +135,7 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
                 /* y= */ top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
                 of_size(
                     /* w= */ 12 * hour_width as u32,
-                    /* h= */ this_t_bar_height));
+                    /* h= */ this_t_bar_height),
             styles.color_black);
 
         imageproc::drawing::draw_text_mut(
