@@ -127,11 +127,15 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
             /* y= */ (top_y + precip_bar_max_height) as u32,
             scale(30.0), &styles.font_bold, &day_label);
 
+        let this_t_bar_height = std::cmp::max(
+            1, (t_bars_height as f32 * (max_pct - min_pct)) as u32);
         imageproc::drawing::draw_filled_rect_mut(
             imgbuf, imageproc::rect::Rect::at(
-                left_x + day_count * day_width as i32 + 6 * hour_width as i32,
-                top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
-                of_size(12 * hour_width as u32, (t_bars_height as f32 * (max_pct - min_pct)) as u32),
+                /* x= */ left_x + day_count * day_width as i32 + 6 * hour_width as i32,
+                /* y= */ top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
+                of_size(
+                    /* w= */ 12 * hour_width as u32,
+                    /* h= */ this_t_bar_height));
             styles.color_black);
 
         imageproc::drawing::draw_text_mut(
