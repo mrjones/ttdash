@@ -1,4 +1,4 @@
-The rust compiler ran out of memory when I ran it directly on the Pi Zero.  One option is to use a compile on a different Pi (models other than the zero seem to have more ram). Another option is to compile it on x86 and just copy the binary.  It's a little bit of a hassle, primarily because of an OpenSSL dependency.  However, it does work, and here are some rough notes on how I got it to go:
+The rust compiler ran out of memory when I ran it directly on the Pi Zero.  One option is to compile on a different Pi (models other than the zero seem to have more ram). Another option is to compile it on desktop/x86 computer and just copy the binary.  It's a little bit of a hassle, primarily because of an OpenSSL dependency.  However, it does work, and here are some rough notes on how I got it to go:
 
 ```
 rustup target add arm-unknown-linux-gnueabihf
