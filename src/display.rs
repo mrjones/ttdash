@@ -27,7 +27,7 @@ const VCM_DC_SETTING : u8 = 0x82;
 
 pub fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
     let mut gpio = rppal::gpio::Gpio::new()?;
-    let dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
+    let mut dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
     let busy_pin = gpio.get(BUSY_PIN).expect("get busy pin").into_input();
 
     // Don't forget to enable SPI with sudo raspi-config
@@ -38,19 +38,19 @@ pub fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult
         rppal::spi::Mode::Mode0)?;
 
     init_display(&mut gpio, &mut spi);
-    display_image(&dc_pin, &busy_pin, &mut spi, image);
+    display_image(&mut dc_pin, &busy_pin, &mut spi, image);
 
     return Ok(());
 }
 
-fn send_command(dc_pin: &OutputPin, spi: &mut Spi, command: u8) {
+fn send_command(dc_pin: &mut OutputPin, spi: &mut Spi, command: u8) {
     dc_pin.set_low();
     let v = vec![command];
     let bytes = spi.write(&v).expect("spi.write");
     assert_eq!(bytes, 1);
 }
 
-fn send_data(dc_pin: &OutputPin, spi: &mut Spi, data: u8) {
+fn send_data(dc_pin: &mut OutputPin, spi: &mut Spi, data: u8) {
     dc_pin.set_high();
     let v = vec![data];
     let bytes = spi.write(&v).expect("spi.write");
@@ -68,9 +68,9 @@ fn wait_until_idle(busy_pin: &InputPin) {
 
 fn init_display(gpio: &mut Gpio, spi: &mut Spi) {
     //    gpio.set_mode(RST_PIN, Mode::Output);
-    let rst_pin = gpio.get(RST_PIN).expect("get rst pin").into_output();
-    let dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
-    let cs_pin = gpio.get(CS_PIN).expect("get cs pin").into_output();
+    let mut rst_pin = gpio.get(RST_PIN).expect("get rst pin").into_output();
+    let mut dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
+    let _cs_pin = gpio.get(CS_PIN).expect("get cs pin").into_output();  // Unused?
     let busy_pin = gpio.get(BUSY_PIN).expect("get busy pin").into_input();
 
     rst_pin.set_low();
@@ -78,51 +78,51 @@ fn init_display(gpio: &mut Gpio, spi: &mut Spi) {
     rst_pin.set_high();
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    send_command(&dc_pin, spi, POWER_SETTING);
-    send_data(&dc_pin, spi, 0x37);
-    send_data(&dc_pin, spi, 0x00);
+    send_command(&mut dc_pin, spi, POWER_SETTING);
+    send_data(&mut dc_pin, spi, 0x37);
+    send_data(&mut dc_pin, spi, 0x00);
 
-    send_command(&dc_pin, spi, PANEL_SETTING);
-    send_data(&dc_pin, spi, 0xCF);
-    send_data(&dc_pin, spi, 0x08);
+    send_command(&mut dc_pin, spi, PANEL_SETTING);
+    send_data(&mut dc_pin, spi, 0xCF);
+    send_data(&mut dc_pin, spi, 0x08);
 
-    send_command(&dc_pin, spi, BOOSTER_SOFT_START);
-    send_data(&dc_pin, spi, 0xc7);
-    send_data(&dc_pin, spi, 0xcc);
-    send_data(&dc_pin, spi, 0x28);
+    send_command(&mut dc_pin, spi, BOOSTER_SOFT_START);
+    send_data(&mut dc_pin, spi, 0xc7);
+    send_data(&mut dc_pin, spi, 0xcc);
+    send_data(&mut dc_pin, spi, 0x28);
 
-    send_command(&dc_pin, spi, POWER_ON);
+    send_command(&mut dc_pin, spi, POWER_ON);
     wait_until_idle(&busy_pin);
 
-    send_command(&dc_pin, spi, PLL_CONTROL);
-    send_data(&dc_pin, spi, 0x3c);
+    send_command(&mut dc_pin, spi, PLL_CONTROL);
+    send_data(&mut dc_pin, spi, 0x3c);
 
-    send_command(&dc_pin, spi, TEMPERATURE_CALIBRATION);
-    send_data(&dc_pin, spi, 0x00);
+    send_command(&mut dc_pin, spi, TEMPERATURE_CALIBRATION);
+    send_data(&mut dc_pin, spi, 0x00);
 
-    send_command(&dc_pin, spi, VCOM_AND_DATA_INTERVAL_SETTING);
-    send_data(&dc_pin, spi, 0x77);
+    send_command(&mut dc_pin, spi, VCOM_AND_DATA_INTERVAL_SETTING);
+    send_data(&mut dc_pin, spi, 0x77);
 
-    send_command(&dc_pin, spi, TCON_SETTING);
-    send_data(&dc_pin, spi, 0x22);
+    send_command(&mut dc_pin, spi, TCON_SETTING);
+    send_data(&mut dc_pin, spi, 0x22);
 
-    send_command(&dc_pin, spi, TCON_RESOLUTION);
-    send_data(&dc_pin, spi, 0x02);     //source 640
-    send_data(&dc_pin, spi, 0x80);
-    send_data(&dc_pin, spi, 0x01);     //gate 384
-    send_data(&dc_pin, spi, 0x80);
+    send_command(&mut dc_pin, spi, TCON_RESOLUTION);
+    send_data(&mut dc_pin, spi, 0x02);     //source 640
+    send_data(&mut dc_pin, spi, 0x80);
+    send_data(&mut dc_pin, spi, 0x01);     //gate 384
+    send_data(&mut dc_pin, spi, 0x80);
 
-    send_command(&dc_pin, spi, VCM_DC_SETTING);
-    send_data(&dc_pin, spi, 0x1E);      //decide by LUT file;
+    send_command(&mut dc_pin, spi, VCM_DC_SETTING);
+    send_data(&mut dc_pin, spi, 0x1E);      //decide by LUT file;
 
-    send_command(&dc_pin, spi, 0xe5);           //FLASH MODE;
-    send_data(&dc_pin, spi, 0x03);
+    send_command(&mut dc_pin, spi, 0xe5);           //FLASH MODE;
+    send_data(&mut dc_pin, spi, 0x03);
 
     // Draw all black?
-    send_command(&dc_pin, spi, DATA_START_TRANSMISSION);
+    send_command(&mut dc_pin, spi, DATA_START_TRANSMISSION);
 }
 
-fn display_image(dc_pin: &OutputPin, busy_pin: &InputPin, spi: &mut Spi, imgbuf: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
+fn display_image(dc_pin: &mut OutputPin, busy_pin: &InputPin, spi: &mut Spi, imgbuf: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
     let mut pixel_in_progress: u8 = 0;
 
     use image::Pixel;
@@ -156,7 +156,7 @@ fn display_image(dc_pin: &OutputPin, busy_pin: &InputPin, spi: &mut Spi, imgbuf:
         }
     }
 
-    send_command(&dc_pin, spi, DISPLAY_REFRESH);
+    send_command(dc_pin, spi, DISPLAY_REFRESH);
     std::thread::sleep(std::time::Duration::from_millis(100));
     wait_until_idle(&busy_pin);
 }
