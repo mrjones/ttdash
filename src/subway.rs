@@ -30,7 +30,7 @@ pub fn fetch_and_process_data() -> result::TTDashResult<ProcessedData> {
 }
 
 fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
-    let url = format!("http://linode.mrjon.es:3838/api/station/028").to_string();
+    let url = format!("http://traintrack.nyc/api/station/028").to_string();
     let mut response = reqwest::get(&url)?;
     let mut response_body = vec![];
     use std::io::Read;

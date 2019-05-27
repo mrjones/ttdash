@@ -2,7 +2,7 @@ extern crate image;
 extern crate rppal;
 extern crate std;
 
-use rppal::gpio::{Gpio, Level, Mode};
+use rppal::gpio::{Gpio, Level, InputPin, OutputPin};
 use rppal::spi::{Spi};
 
 use result;
@@ -27,6 +27,8 @@ const VCM_DC_SETTING : u8 = 0x82;
 
 pub fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult<()>{
     let mut gpio = rppal::gpio::Gpio::new()?;
+    let dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
+    let busy_pin = gpio.get(BUSY_PIN).expect("get busy pin").into_input();
 
     // Don't forget to enable SPI with sudo raspi-config
     let mut spi = rppal::spi::Spi::new(
@@ -36,28 +38,28 @@ pub fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult
         rppal::spi::Mode::Mode0)?;
 
     init_display(&mut gpio, &mut spi);
-    display_image(&mut gpio, &mut spi, image);
+    display_image(&dc_pin, &busy_pin, &mut spi, image);
 
     return Ok(());
 }
 
-fn send_command(gpio: &mut Gpio, spi: &mut Spi, command: u8) {
-    gpio.write(DC_PIN, Level::Low);
+fn send_command(dc_pin: &OutputPin, spi: &mut Spi, command: u8) {
+    dc_pin.set_low();
     let v = vec![command];
     let bytes = spi.write(&v).expect("spi.write");
     assert_eq!(bytes, 1);
 }
 
-fn send_data(gpio: &mut Gpio, spi: &mut Spi, data: u8) {
-    gpio.write(DC_PIN, Level::High);
+fn send_data(dc_pin: &OutputPin, spi: &mut Spi, data: u8) {
+    dc_pin.set_high();
     let v = vec![data];
     let bytes = spi.write(&v).expect("spi.write");
     assert_eq!(bytes, 1);
 }
 
-fn wait_until_idle(gpio: &mut Gpio) {
+fn wait_until_idle(busy_pin: &InputPin) {
     loop {
-        if gpio.read(BUSY_PIN).expect("gpio.read") == Level::Low {
+        if busy_pin.read() == Level::Low {
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
@@ -65,61 +67,62 @@ fn wait_until_idle(gpio: &mut Gpio) {
 }
 
 fn init_display(gpio: &mut Gpio, spi: &mut Spi) {
-    gpio.set_mode(RST_PIN, Mode::Output);
-    gpio.set_mode(DC_PIN, Mode::Output);
-    gpio.set_mode(CS_PIN, Mode::Output);
-    gpio.set_mode(BUSY_PIN, Mode::Input);
+    //    gpio.set_mode(RST_PIN, Mode::Output);
+    let rst_pin = gpio.get(RST_PIN).expect("get rst pin").into_output();
+    let dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
+    let cs_pin = gpio.get(CS_PIN).expect("get cs pin").into_output();
+    let busy_pin = gpio.get(BUSY_PIN).expect("get busy pin").into_input();
 
-    gpio.write(RST_PIN, Level::Low);
+    rst_pin.set_low();
     std::thread::sleep(std::time::Duration::from_millis(200));
-    gpio.write(RST_PIN, Level::High);
+    rst_pin.set_high();
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    send_command(gpio, spi, POWER_SETTING);
-    send_data(gpio, spi, 0x37);
-    send_data(gpio, spi, 0x00);
+    send_command(&dc_pin, spi, POWER_SETTING);
+    send_data(&dc_pin, spi, 0x37);
+    send_data(&dc_pin, spi, 0x00);
 
-    send_command(gpio, spi, PANEL_SETTING);
-    send_data(gpio, spi, 0xCF);
-    send_data(gpio, spi, 0x08);
+    send_command(&dc_pin, spi, PANEL_SETTING);
+    send_data(&dc_pin, spi, 0xCF);
+    send_data(&dc_pin, spi, 0x08);
 
-    send_command(gpio, spi, BOOSTER_SOFT_START);
-    send_data(gpio, spi, 0xc7);
-    send_data(gpio, spi, 0xcc);
-    send_data(gpio, spi, 0x28);
+    send_command(&dc_pin, spi, BOOSTER_SOFT_START);
+    send_data(&dc_pin, spi, 0xc7);
+    send_data(&dc_pin, spi, 0xcc);
+    send_data(&dc_pin, spi, 0x28);
 
-    send_command(gpio, spi, POWER_ON);
-    wait_until_idle(gpio);
+    send_command(&dc_pin, spi, POWER_ON);
+    wait_until_idle(&busy_pin);
 
-    send_command(gpio, spi, PLL_CONTROL);
-    send_data(gpio, spi, 0x3c);
+    send_command(&dc_pin, spi, PLL_CONTROL);
+    send_data(&dc_pin, spi, 0x3c);
 
-    send_command(gpio, spi, TEMPERATURE_CALIBRATION);
-    send_data(gpio, spi, 0x00);
+    send_command(&dc_pin, spi, TEMPERATURE_CALIBRATION);
+    send_data(&dc_pin, spi, 0x00);
 
-    send_command(gpio, spi, VCOM_AND_DATA_INTERVAL_SETTING);
-    send_data(gpio, spi, 0x77);
+    send_command(&dc_pin, spi, VCOM_AND_DATA_INTERVAL_SETTING);
+    send_data(&dc_pin, spi, 0x77);
 
-    send_command(gpio, spi, TCON_SETTING);
-    send_data(gpio, spi, 0x22);
+    send_command(&dc_pin, spi, TCON_SETTING);
+    send_data(&dc_pin, spi, 0x22);
 
-    send_command(gpio, spi, TCON_RESOLUTION);
-    send_data(gpio, spi, 0x02);     //source 640
-    send_data(gpio, spi, 0x80);
-    send_data(gpio, spi, 0x01);     //gate 384
-    send_data(gpio, spi, 0x80);
+    send_command(&dc_pin, spi, TCON_RESOLUTION);
+    send_data(&dc_pin, spi, 0x02);     //source 640
+    send_data(&dc_pin, spi, 0x80);
+    send_data(&dc_pin, spi, 0x01);     //gate 384
+    send_data(&dc_pin, spi, 0x80);
 
-    send_command(gpio, spi, VCM_DC_SETTING);
-    send_data(gpio, spi, 0x1E);      //decide by LUT file;
+    send_command(&dc_pin, spi, VCM_DC_SETTING);
+    send_data(&dc_pin, spi, 0x1E);      //decide by LUT file;
 
-    send_command(gpio, spi, 0xe5);           //FLASH MODE;
-    send_data(gpio, spi, 0x03);
+    send_command(&dc_pin, spi, 0xe5);           //FLASH MODE;
+    send_data(&dc_pin, spi, 0x03);
 
     // Draw all black?
-    send_command(gpio, spi, DATA_START_TRANSMISSION);
+    send_command(&dc_pin, spi, DATA_START_TRANSMISSION);
 }
 
-fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
+fn display_image(dc_pin: &OutputPin, busy_pin: &InputPin, spi: &mut Spi, imgbuf: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
     let mut pixel_in_progress: u8 = 0;
 
     use image::Pixel;
@@ -148,12 +151,12 @@ fn display_image(gpio: &mut Gpio, spi: &mut Spi, imgbuf: &image::ImageBuffer<ima
                     pixel_in_progress |= 0x03;
                 }
 
-                send_data(gpio, spi, pixel_in_progress);
+                send_data(dc_pin, spi, pixel_in_progress);
             }
         }
     }
 
-    send_command(gpio, spi, DISPLAY_REFRESH);
+    send_command(&dc_pin, spi, DISPLAY_REFRESH);
     std::thread::sleep(std::time::Duration::from_millis(100));
-    wait_until_idle(gpio);
+    wait_until_idle(&busy_pin);
 }
