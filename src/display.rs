@@ -9,7 +9,7 @@ use result;
 
 const RST_PIN : u8 = 17;
 const DC_PIN : u8 = 25;
-const CS_PIN : u8 = 8;
+const _CS_PIN : u8 = 8;
 const BUSY_PIN : u8 = 24;
 
 const PANEL_SETTING : u8 = 0x00;
