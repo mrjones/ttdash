@@ -37,7 +37,7 @@ pub fn setup_and_display_image(image: &image::GrayImage) -> result::TTDashResult
         2000000,
         rppal::spi::Mode::Mode0)?;
 
-    init_display(&mut gpio, &mut spi);
+    init_display(&mut gpio, &mut spi, &mut dc_pin, &busy_pin);
     display_image(&mut dc_pin, &busy_pin, &mut spi, image);
 
     return Ok(());
@@ -66,60 +66,60 @@ fn wait_until_idle(busy_pin: &InputPin) {
     }
 }
 
-fn init_display(gpio: &mut Gpio, spi: &mut Spi) {
+fn init_display(gpio: &mut Gpio, spi: &mut Spi, dc_pin: &mut OutputPin, busy_pin: &InputPin) {
     //    gpio.set_mode(RST_PIN, Mode::Output);
     let mut rst_pin = gpio.get(RST_PIN).expect("get rst pin").into_output();
-    let mut dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
+//    let mut dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
     let _cs_pin = gpio.get(CS_PIN).expect("get cs pin").into_output();  // Unused?
-    let busy_pin = gpio.get(BUSY_PIN).expect("get busy pin").into_input();
+//    let busy_pin = gpio.get(BUSY_PIN).expect("get busy pin").into_input();
 
     rst_pin.set_low();
     std::thread::sleep(std::time::Duration::from_millis(200));
     rst_pin.set_high();
     std::thread::sleep(std::time::Duration::from_millis(200));
 
-    send_command(&mut dc_pin, spi, POWER_SETTING);
-    send_data(&mut dc_pin, spi, 0x37);
-    send_data(&mut dc_pin, spi, 0x00);
+    send_command(dc_pin, spi, POWER_SETTING);
+    send_data(dc_pin, spi, 0x37);
+    send_data(dc_pin, spi, 0x00);
 
-    send_command(&mut dc_pin, spi, PANEL_SETTING);
-    send_data(&mut dc_pin, spi, 0xCF);
-    send_data(&mut dc_pin, spi, 0x08);
+    send_command(dc_pin, spi, PANEL_SETTING);
+    send_data(dc_pin, spi, 0xCF);
+    send_data(dc_pin, spi, 0x08);
 
-    send_command(&mut dc_pin, spi, BOOSTER_SOFT_START);
-    send_data(&mut dc_pin, spi, 0xc7);
-    send_data(&mut dc_pin, spi, 0xcc);
-    send_data(&mut dc_pin, spi, 0x28);
+    send_command(dc_pin, spi, BOOSTER_SOFT_START);
+    send_data(dc_pin, spi, 0xc7);
+    send_data(dc_pin, spi, 0xcc);
+    send_data(dc_pin, spi, 0x28);
 
-    send_command(&mut dc_pin, spi, POWER_ON);
+    send_command(dc_pin, spi, POWER_ON);
     wait_until_idle(&busy_pin);
 
-    send_command(&mut dc_pin, spi, PLL_CONTROL);
-    send_data(&mut dc_pin, spi, 0x3c);
+    send_command(dc_pin, spi, PLL_CONTROL);
+    send_data(dc_pin, spi, 0x3c);
 
-    send_command(&mut dc_pin, spi, TEMPERATURE_CALIBRATION);
-    send_data(&mut dc_pin, spi, 0x00);
+    send_command(dc_pin, spi, TEMPERATURE_CALIBRATION);
+    send_data(dc_pin, spi, 0x00);
 
-    send_command(&mut dc_pin, spi, VCOM_AND_DATA_INTERVAL_SETTING);
-    send_data(&mut dc_pin, spi, 0x77);
+    send_command(dc_pin, spi, VCOM_AND_DATA_INTERVAL_SETTING);
+    send_data(dc_pin, spi, 0x77);
 
-    send_command(&mut dc_pin, spi, TCON_SETTING);
-    send_data(&mut dc_pin, spi, 0x22);
+    send_command(dc_pin, spi, TCON_SETTING);
+    send_data(dc_pin, spi, 0x22);
 
-    send_command(&mut dc_pin, spi, TCON_RESOLUTION);
-    send_data(&mut dc_pin, spi, 0x02);     //source 640
-    send_data(&mut dc_pin, spi, 0x80);
-    send_data(&mut dc_pin, spi, 0x01);     //gate 384
-    send_data(&mut dc_pin, spi, 0x80);
+    send_command(dc_pin, spi, TCON_RESOLUTION);
+    send_data(dc_pin, spi, 0x02);     //source 640
+    send_data(dc_pin, spi, 0x80);
+    send_data(dc_pin, spi, 0x01);     //gate 384
+    send_data(dc_pin, spi, 0x80);
 
-    send_command(&mut dc_pin, spi, VCM_DC_SETTING);
-    send_data(&mut dc_pin, spi, 0x1E);      //decide by LUT file;
+    send_command(dc_pin, spi, VCM_DC_SETTING);
+    send_data(dc_pin, spi, 0x1E);      //decide by LUT file;
 
-    send_command(&mut dc_pin, spi, 0xe5);           //FLASH MODE;
-    send_data(&mut dc_pin, spi, 0x03);
+    send_command(dc_pin, spi, 0xe5);           //FLASH MODE;
+    send_data(dc_pin, spi, 0x03);
 
     // Draw all black?
-    send_command(&mut dc_pin, spi, DATA_START_TRANSMISSION);
+    send_command(dc_pin, spi, DATA_START_TRANSMISSION);
 }
 
 fn display_image(dc_pin: &mut OutputPin, busy_pin: &InputPin, spi: &mut Spi, imgbuf: &image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
