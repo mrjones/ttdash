@@ -67,11 +67,7 @@ fn wait_until_idle(busy_pin: &InputPin) {
 }
 
 fn init_display(gpio: &mut Gpio, spi: &mut Spi, dc_pin: &mut OutputPin, busy_pin: &InputPin) {
-    //    gpio.set_mode(RST_PIN, Mode::Output);
     let mut rst_pin = gpio.get(RST_PIN).expect("get rst pin").into_output();
-//    let mut dc_pin = gpio.get(DC_PIN).expect("get dc pin").into_output();
-    let _cs_pin = gpio.get(CS_PIN).expect("get cs pin").into_output();  // Unused?
-//    let busy_pin = gpio.get(BUSY_PIN).expect("get busy pin").into_input();
 
     rst_pin.set_low();
     std::thread::sleep(std::time::Duration::from_millis(200));
