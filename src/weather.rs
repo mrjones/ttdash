@@ -4,6 +4,10 @@
 // "forecastHourly": "https://api.weather.gov/gridpoints/OKX/32,34/forecast/hourly",
 // "forecastGridData": "https://api.weather.gov/gridpoints/OKX/32,34",
 // "observationStations": "https://api.weather.gov/gridpoints/OKX/32,34/stations",
+//
+// 32,34 seems to yield somewhat different data than 33,32.  33,32 seems more
+// accurate for me, maybe that other grid is on the water or something?
+// TODO(mrjones): (Geocode? -> ) LAT/LNG -> URL
 extern crate chrono;
 extern crate chrono_tz;
 extern crate reqwest;
@@ -255,7 +259,7 @@ fn parse_grid_entry(entry: &NwsApiGridValue) -> result::TTDashResult<GridForecas
 pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
     use std::io::Read;
 
-    let url = format!("https://api.weather.gov/gridpoints/OKX/32,34");
+    let url = format!("https://api.weather.gov/gridpoints/OKX/33,32");
 
     let mut response = reqwest::get(&url)?;
     let mut response_body = String::new();
