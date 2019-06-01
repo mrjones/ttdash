@@ -25,6 +25,7 @@ struct TTDash<'a> {
     weather_display: Option<weather::WeatherDisplay>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
     styles: drawing::Styles<'a>,
+    last_redraw: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl<'a> TTDash<'a> {
@@ -41,7 +42,6 @@ impl<'a> TTDash<'a> {
         return TTDash {
             weather_display: None,
             forecast_timestamp: chrono::Utc::now(),
-
             styles: drawing::Styles{
                 font_black: font_black,
                 font_bold: font_bold,
@@ -51,6 +51,7 @@ impl<'a> TTDash<'a> {
                 color_light_gray: image::Luma{data: [192u8; 1]},
                 color_white: image::Luma{data: [255u8; 1]},
             },
+            last_redraw: None,
         }
     }
 
@@ -83,15 +84,32 @@ impl<'a> TTDash<'a> {
             let _ = imgbuf.save(png_out.unwrap())?;
         }
 
+        let mut needs_redraw = false;
+
         if prev_processed_data.big_countdown != processed_data.big_countdown {
             println!("Updating bignum {:?} -> {:?}",
                      prev_processed_data.big_countdown,
                      processed_data.big_countdown);
+            needs_redraw = true;
+        } else if self.last_redraw.is_none() {
+            // Probably never happens in practice?
+            println!("Drawing for the first time.");
+            needs_redraw = true;
+        } else if self.last_redraw.is_some() {
+            let seconds_since_redraw = now.timestamp() - self.last_redraw.unwrap().timestamp();
+            needs_redraw = seconds_since_redraw > 60 * 30;
+            if needs_redraw {
+                println!("Redrawing since it's been too long.");
+            }
+        }
+
+        if needs_redraw {
             if display {
                 display::setup_and_display_image(&imgbuf)?;
             }
+            self.last_redraw = Some(now);
         } else {
-            println!("Big num didn't change, not refreshing");
+            println!("Not refreshing.");
             std::thread::sleep(std::time::Duration::from_secs(5));
         }
 
