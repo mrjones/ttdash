@@ -8,6 +8,7 @@ use webclient_api;
 
 pub struct ProcessedData {
     pub upcoming_trains: Vec<(i64, String)>,
+    pub upcoming_outbound_trains: Vec<(i64, String)>,
     pub big_countdown: Option<String>,
     pub big_countdown_line: Option<String>,
     pub station_name: String,
@@ -17,6 +18,7 @@ impl ProcessedData {
     pub fn empty() -> ProcessedData {
         return ProcessedData{
             upcoming_trains: vec![],
+            upcoming_outbound_trains: vec![],
             big_countdown: None,
             big_countdown_line: None,
             station_name: "".to_string(),
@@ -42,12 +44,19 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
 
 fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<ProcessedData> {
     let mut arrivals = vec![];
+    let mut outbound_arrivals = vec![];
     let now = chrono::Utc::now().timestamp();
     for line in data.get_line() {
         if line.get_direction() == webclient_api::Direction::UPTOWN {
             for arrival in line.get_arrivals() {
                 if arrival.get_timestamp() > now {
                     arrivals.push((arrival.get_timestamp(), line.get_line().to_string()));
+                }
+            }
+        } else if line.get_direction() == webclient_api::Direction::DOWNTOWN {
+            for arrival in line.get_arrivals() {
+                if arrival.get_timestamp() > now {
+                    outbound_arrivals.push((arrival.get_timestamp(), line.get_line().to_string()));
                 }
             }
         }
@@ -57,11 +66,13 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
         return Ok(ProcessedData::empty());
     } else {
         arrivals.sort_by_key(|x| x.0);
+        outbound_arrivals.sort_by_key(|x| x.0);
         let first_arrival_ts = arrivals[0].0;
         let first_arrival_line = arrivals[0].1.to_string();
 
         return Ok(ProcessedData{
             upcoming_trains: arrivals,
+            upcoming_outbound_trains: outbound_arrivals,
             big_countdown: Some(drawing::countdown_summary(now, first_arrival_ts)),
             big_countdown_line: Some(first_arrival_line),
             station_name: data.get_name().to_string(),

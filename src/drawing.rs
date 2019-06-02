@@ -84,6 +84,13 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
         y = y + y_step;
     }
 
+    let outbound_text: String = match data.upcoming_outbound_trains.first() {
+        None => "- NO OUTBOUND TRAIN -".to_string(),
+        Some((timestamp, line)) => format!("Outbound {}: {}", line, countdown_summary(now, *timestamp)).to_string(),
+    };
+
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 320, scale(50.0), &styles.font, &outbound_text);
+
 }
 
 pub fn countdown_summary(now_ts: i64, arrival_ts: i64) -> String {
