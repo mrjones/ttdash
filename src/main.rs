@@ -1,6 +1,7 @@
 // sudo apt-get install fonts-roboto libssl-dev
 extern crate chrono;
 extern crate chrono_tz;
+extern crate crypto;
 extern crate getopts;
 extern crate image;
 extern crate imageproc;
@@ -144,15 +145,15 @@ fn main() {
         None => {},
     }
 
-    /*
     match update::binary_update_available() {
         Some(version) => {
-            println!("update available to version: {}", version);
+            println!("update available");
             update::upgrade_to(&version).expect("Upgrade");
         },
-        None => {},
+        None => {
+            println!("No update available");
+        },
     }
-     */
 
     loop {
         match ttdash.one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
