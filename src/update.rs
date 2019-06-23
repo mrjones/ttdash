@@ -56,6 +56,10 @@ fn local_version() -> result::TTDashResult<TTDashVersion> {
     };
 }
 
+pub fn updater_configured() -> bool {
+    return local_version().is_ok();
+}
+
 pub fn binary_update_available() -> Option<TTDashUpgradeTarget> {
     match (local_version(), available_target()) {
         (Ok(local_version), Ok(available_target)) => {

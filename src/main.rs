@@ -126,14 +126,16 @@ fn main() {
     opts.optflag("o", "one-shot", "keep the display up to date");
     opts.optopt("i", "save-image", "Where to put a png.", "FILENAME");
     opts.optopt("p", "debug-port", "Port to run a debug server on.", "PORT");
+    opts.optflag("u", "auto-update", "Run the auto-updater.");
 
     let matches = opts.parse(&args[1..]).expect("parse opts");
 
     let display = !matches.opt_present("skip-display");
     let one_shot = matches.opt_present("one-shot");
     let debug_port = matches.opt_str("debug-port");
+    let auto_update = matches.opt_present("auto-update");
 
-    println!("Running. display={} one-shot={} debug-port={:?}", display, one_shot, debug_port);
+    println!("Running. display={} one-shot={} debug-port={:?} auto-update={}", display, one_shot, debug_port, auto_update);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -145,14 +147,17 @@ fn main() {
         None => {},
     }
 
-    match update::binary_update_available() {
-        Some(version) => {
-            println!("update available");
-            update::upgrade_to(&version).expect("Upgrade");
-        },
-        None => {
-            println!("No update available");
-        },
+    if auto_update {
+        assert!(update::updater_configured());
+        match update::binary_update_available() {
+            Some(version) => {
+                println!("update available");
+                update::upgrade_to(&version).expect("Upgrade");
+            },
+            None => {
+                println!("No update available");
+            },
+        }
     }
 
     loop {
