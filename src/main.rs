@@ -17,6 +17,7 @@ mod display;
 mod drawing;
 mod result;
 mod subway;
+mod update;
 mod weather;
 mod webclient_api;
 
@@ -142,6 +143,16 @@ fn main() {
         },
         None => {},
     }
+
+    /*
+    match update::binary_update_available() {
+        Some(version) => {
+            println!("update available to version: {}", version);
+            update::upgrade_to(&version).expect("Upgrade");
+        },
+        None => {},
+    }
+     */
 
     loop {
         match ttdash.one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
