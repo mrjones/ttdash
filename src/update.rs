@@ -1,3 +1,8 @@
+// TODO:
+// - Install new binary
+// - Compression
+// - Faster MD5Sum
+
 extern crate crypto;
 extern crate reqwest;
 extern crate std;
@@ -96,23 +101,18 @@ fn md5sum(filename: &str) -> result::TTDashResult<String> {
     return Ok(result);
 }
 
-pub fn upgrade_to(target: &TTDashUpgradeTarget) -> result::TTDashResult<()> {
+pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str) -> result::TTDashResult<()> {
 
     let filename = format!("/tmp/ttdash-download-{}.{}",
                            target.version.major, target.version.minor);
 
-    match md5sum(&filename) {
-        Ok(sum) => {
-            if sum == target.md5sum {
-                // Someone already successfully completed a download!
-                println!("File already exists");
-                return Ok(());
-            }
-        }
-        _ => {},
-    }
+    println!("Target md5sum: {}", target.md5sum);
+    let good_binary_exists =  match md5sum(&filename) {
+        Ok(sum) => (sum == target.md5sum),
+        _ => false,
+    };
 
-    {
+    if !good_binary_exists {
         let mut local_file = std::fs::File::create(&filename)?;
         reqwest::get(&target.url)?.copy_to(&mut local_file)?;
     }
@@ -120,6 +120,13 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget) -> result::TTDashResult<()> {
     assert_eq!(target.md5sum, md5sum(&filename)?);
 
     println!("Download complete");
+
+    println!("rm /tmp/ttdash.prev");
+    std::fs::remove_file("/tmp/ttdash.prev").ok();
+    println!("copy {} /tmp/ttdash.prev", argv0);
+    std::fs::copy(argv0, "/tmp/ttdash.prev")?;
+    println!("rename {} {}", filename, argv0);
+    std::fs::rename(filename, argv0)?;
 
     return Ok(());
 }

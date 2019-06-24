@@ -149,10 +149,13 @@ fn main() {
 
     if auto_update {
         assert!(update::updater_configured());
+
+        let argv0 = std::env::args().nth(0).expect("argv0");
+        println!("argv[0] = {:?}", argv0);
         match update::binary_update_available() {
             Some(version) => {
                 println!("update available");
-                update::upgrade_to(&version).expect("Upgrade");
+                update::upgrade_to(&version, &argv0).expect("Upgrade");
             },
             None => {
                 println!("No update available");
