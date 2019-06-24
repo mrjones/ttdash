@@ -4,6 +4,7 @@
 // - Faster MD5Sum
 
 extern crate crypto;
+extern crate nix;
 extern crate reqwest;
 extern crate std;
 
@@ -12,7 +13,7 @@ use result;
 pub const VERSION: Option<&'static str> = option_env!("TTDASH_VERSION");
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-struct TTDashVersion {
+pub struct TTDashVersion {
     pub major: i32,
     pub minor: i32,
 }
@@ -50,7 +51,7 @@ fn available_target() -> result::TTDashResult<TTDashUpgradeTarget> {
     return Ok(target_info);
 }
 
-fn local_version() -> result::TTDashResult<TTDashVersion> {
+pub fn local_version() -> result::TTDashResult<TTDashVersion> {
     match VERSION {
         Some(local_version_str) => {
             return parse_version(local_version_str);
@@ -101,7 +102,7 @@ fn md5sum(filename: &str) -> result::TTDashResult<String> {
     return Ok(result);
 }
 
-pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str) -> result::TTDashResult<()> {
+pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>) -> result::TTDashResult<()> {
 
     let filename = format!("/tmp/ttdash-download-{}.{}",
                            target.version.major, target.version.minor);
@@ -121,12 +122,22 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str) -> result::TTDashRe
 
     println!("Download complete");
 
+    println!("chmod");
+    std::fs::set_permissions(
+        &filename, std::os::unix::fs::PermissionsExt::from_mode(0o777))?;
     println!("rm /tmp/ttdash.prev");
     std::fs::remove_file("/tmp/ttdash.prev").ok();
     println!("copy {} /tmp/ttdash.prev", argv0);
     std::fs::copy(argv0, "/tmp/ttdash.prev")?;
-    println!("rename {} {}", filename, argv0);
-    std::fs::rename(filename, argv0)?;
+    println!("rename {} {}", &filename, argv0);
+    std::fs::rename(&filename, argv0)?;
+
+    let argv0_c = std::ffi::CString::new(argv0).expect("cstringing argv0");
+    let argv_c: Vec<std::ffi::CString> = argv.iter()
+        .map(|s| std::ffi::CString::new(s.as_str()).expect("cstringing argv")).collect();
+
+    println!("Execing!");
+    nix::unistd::execv(&argv0_c, &argv_c).unwrap();
 
     return Ok(());
 }

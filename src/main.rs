@@ -5,6 +5,7 @@ extern crate crypto;
 extern crate getopts;
 extern crate image;
 extern crate imageproc;
+extern crate nix;
 extern crate protobuf;
 extern crate reqwest;
 extern crate rppal;
@@ -120,7 +121,14 @@ impl<'a> TTDash<'a> {
 }
 
 fn main() {
+    match update::local_version() {
+        Ok(v) => println!("TTDASH VERSION {}.{}", v.major, v.minor),
+        Err(_) => println!("NO VERSION"),
+    }
+
     let args: Vec<String> = std::env::args().collect();
+    println!("Command Line: {:?}", args);
+
     let mut opts = getopts::Options::new();
     opts.optflag("d", "skip-display", "display to the epd device");
     opts.optflag("o", "one-shot", "keep the display up to date");
@@ -151,11 +159,12 @@ fn main() {
         assert!(update::updater_configured());
 
         let argv0 = std::env::args().nth(0).expect("argv0");
+        let argv: Vec<String> = std::env::args().collect();
         println!("argv[0] = {:?}", argv0);
         match update::binary_update_available() {
             Some(version) => {
                 println!("update available");
-                update::upgrade_to(&version, &argv0).expect("Upgrade");
+                update::upgrade_to(&version, &argv0, &argv).expect("Upgrade");
             },
             None => {
                 println!("No update available");
