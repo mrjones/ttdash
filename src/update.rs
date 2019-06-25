@@ -3,7 +3,8 @@
 // - Compression
 // - Faster MD5Sum
 
-extern crate crypto;
+extern crate hex;
+extern crate md5;
 extern crate nix;
 extern crate reqwest;
 extern crate std;
@@ -89,17 +90,21 @@ pub fn binary_update_available() -> Option<TTDashUpgradeTarget> {
 
 fn md5sum(filename: &str) -> result::TTDashResult<String> {
     use std::io::Read;
-    use crypto::digest::Digest;
+    use md5::Digest;
 
     println!("md5sum {}", filename);
     let mut disk_file = std::fs::File::open(&filename)?;
     let mut disk_contents = vec![];
     disk_file.read_to_end(&mut disk_contents)?;
-    let mut hasher = crypto::md5::Md5::new();
+    println!("md5sum read done len={}", disk_contents.len());
+    let mut hasher = md5::Md5::new();
+    println!("md5sum hasher newed");
     hasher.input(&disk_contents);
-    let result = hasher.result_str();
-    println!("md5sum: {}", result);
-    return Ok(result);
+    println!("md5sum inputted");
+    let result = hasher.result();
+    let encoded_result: String = hex::encode(result.as_slice());
+    println!("md5sum: {}", encoded_result);
+    return Ok(encoded_result);
 }
 
 pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>) -> result::TTDashResult<()> {
@@ -122,14 +127,10 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
 
     println!("Download complete");
 
-    println!("chmod");
     std::fs::set_permissions(
         &filename, std::os::unix::fs::PermissionsExt::from_mode(0o777))?;
-    println!("rm /tmp/ttdash.prev");
     std::fs::remove_file("/tmp/ttdash.prev").ok();
-    println!("copy {} /tmp/ttdash.prev", argv0);
     std::fs::copy(argv0, "/tmp/ttdash.prev")?;
-    println!("rename {} {}", &filename, argv0);
     std::fs::rename(&filename, argv0)?;
 
     let argv0_c = std::ffi::CString::new(argv0).expect("cstringing argv0");

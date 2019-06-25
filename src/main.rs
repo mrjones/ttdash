@@ -1,10 +1,11 @@
 // sudo apt-get install fonts-roboto libssl-dev
 extern crate chrono;
 extern crate chrono_tz;
-extern crate crypto;
 extern crate getopts;
+extern crate hex;
 extern crate image;
 extern crate imageproc;
+extern crate md5;
 extern crate nix;
 extern crate protobuf;
 extern crate reqwest;
