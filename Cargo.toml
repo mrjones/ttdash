@@ -6,10 +6,12 @@ authors = ["Matt Jones <jonesmr@gmail.com>"]
 [dependencies]
 chrono = "*"
 chrono-tz = "*"
+flexi_logger = "*"
 getopts = "*"
 hex = "*"
 image = "*"
 imageproc = "*"
+log = "*"
 md-5 = "*"
 nix = "*"
 protobuf = "*"

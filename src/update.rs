@@ -92,6 +92,7 @@ fn md5sum(filename: &str) -> result::TTDashResult<String> {
     use std::io::Read;
     use md5::Digest;
 
+    info!("md5sum {}", filename);
     println!("md5sum {}", filename);
     let mut disk_file = std::fs::File::open(&filename)?;
     let mut disk_contents = vec![];

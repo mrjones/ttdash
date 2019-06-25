@@ -1,18 +1,19 @@
 // sudo apt-get install fonts-roboto libssl-dev
 extern crate chrono;
 extern crate chrono_tz;
+extern crate flexi_logger;
 extern crate getopts;
 extern crate hex;
 extern crate image;
 extern crate imageproc;
+#[macro_use] extern crate log;
 extern crate md5;
 extern crate nix;
 extern crate protobuf;
 extern crate reqwest;
 extern crate rppal;
 extern crate rusttype;
-#[macro_use]
-extern crate serde_derive;
+#[macro_use] extern crate serde_derive;
 extern crate simple_server;
 
 mod debug;
@@ -121,7 +122,40 @@ impl<'a> TTDash<'a> {
     }
 }
 
+fn short_level(level: log::Level) -> String {
+    return match level {
+        log::Level::Error => "E".to_string(),
+        log::Level::Warn => "W".to_string(),
+        log::Level::Info => "I".to_string(),
+        log::Level::Debug => "D".to_string(),
+        _ => level.to_string(),
+    };
+}
+
+fn format_log(
+    w: &mut std::io::Write,
+    now: &mut flexi_logger::DeferredNow,
+    record: &log::Record,
+) -> Result<(), std::io::Error> {
+    write!(
+        w,
+        "[{}{} {}:{}] {}",
+        short_level(record.level()),
+        now.now().format("%Y%m%d %H:%M:%S%.6f"),
+//        record.module_path().unwrap_or("<unnamed>"),
+        record.file().unwrap_or("<unnamed>"),
+        record.line().unwrap_or(0),
+        &record.args()
+    )
+}
+
 fn main() {
+    flexi_logger::Logger::with_env_or_str("info")
+        .format(format_log)
+        .print_message()
+        .start()
+        .unwrap();
+
     match update::local_version() {
         Ok(v) => println!("TTDASH VERSION {}.{}", v.major, v.minor),
         Err(_) => println!("NO VERSION"),
