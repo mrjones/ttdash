@@ -13,6 +13,6 @@ pub fn run_debug_server(port: &str) {
         }
     });
 
-    println!("Running debug HTTP server on port {}", port);
+    debug!("Running debug HTTP server on port {}", port);
     server.listen("0.0.0.0", port);
 }

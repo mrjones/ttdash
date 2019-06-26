@@ -67,7 +67,7 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<String>, prev_processed_data: &subway::ProcessedData) -> result::TTDashResult<subway::ProcessedData>{
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData) -> result::TTDashResult<subway::ProcessedData>{
         let processed_data = subway::fetch_and_process_data()?;
 
         // TODO(mrjones): Make this async or something?
@@ -76,7 +76,7 @@ impl<'a> TTDash<'a> {
         if self.weather_display.is_none() || (now.timestamp() - self.forecast_timestamp.timestamp() > 60 * 30) {
             match self.update_weather(&now) {
                 Ok(_) => {},
-                Err(err) => println!("Error: {:?}", err),
+                Err(err) => error!("Error: {:?}", err),
             }
         }
 
@@ -92,19 +92,19 @@ impl<'a> TTDash<'a> {
         let mut needs_redraw = false;
 
         if prev_processed_data.big_countdown != processed_data.big_countdown {
-            println!("Updating bignum {:?} -> {:?}",
+            info!("Updating bignum {:?} -> {:?}",
                      prev_processed_data.big_countdown,
                      processed_data.big_countdown);
             needs_redraw = true;
         } else if self.last_redraw.is_none() {
             // Probably never happens in practice?
-            println!("Drawing for the first time.");
+            info!("Drawing for the first time.");
             needs_redraw = true;
         } else if self.last_redraw.is_some() {
             let seconds_since_redraw = now.timestamp() - self.last_redraw.unwrap().timestamp();
             needs_redraw = seconds_since_redraw > 60 * 30;
             if needs_redraw {
-                println!("Redrawing since it's been too long.");
+                info!("Redrawing since it's been too long.");
             }
         }
 
@@ -114,7 +114,7 @@ impl<'a> TTDash<'a> {
             }
             self.last_redraw = Some(now);
         } else {
-            println!("Not refreshing.");
+            debug!("Not refreshing.");
             std::thread::sleep(std::time::Duration::from_secs(5));
         }
 
@@ -139,10 +139,9 @@ fn format_log(
 ) -> Result<(), std::io::Error> {
     write!(
         w,
-        "[{}{} {}:{}] {}",
+        "[{}{} {}:{:<4}] {}",
         short_level(record.level()),
         now.now().format("%Y%m%d %H:%M:%S%.6f"),
-//        record.module_path().unwrap_or("<unnamed>"),
         record.file().unwrap_or("<unnamed>"),
         record.line().unwrap_or(0),
         &record.args()
@@ -156,13 +155,14 @@ fn main() {
         .start()
         .unwrap();
 
-    match update::local_version() {
-        Ok(v) => println!("TTDASH VERSION {}.{}", v.major, v.minor),
-        Err(_) => println!("NO VERSION"),
-    }
-
     let args: Vec<String> = std::env::args().collect();
-    println!("Command Line: {:?}", args);
+    info!("Command Line: {:?}", args);
+    match update::local_version() {
+        Ok(version) => {
+            info!("TTDash version {}.{}", version.major, version.minor);
+        },
+        _ => {},
+    }
 
     let mut opts = getopts::Options::new();
     opts.optflag("d", "skip-display", "display to the epd device");
@@ -177,8 +177,9 @@ fn main() {
     let one_shot = matches.opt_present("one-shot");
     let debug_port = matches.opt_str("debug-port");
     let auto_update = matches.opt_present("auto-update");
+    let local_png: Option<String> = matches.opt_str("save-image");
 
-    println!("Running. display={} one-shot={} debug-port={:?} auto-update={}", display, one_shot, debug_port, auto_update);
+    info!("Running. display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}", display, one_shot, debug_port, auto_update, local_png);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -195,21 +196,19 @@ fn main() {
 
         let argv0 = std::env::args().nth(0).expect("argv0");
         let argv: Vec<String> = std::env::args().collect();
-        println!("argv[0] = {:?}", argv0);
         match update::binary_update_available() {
             Some(version) => {
-                println!("update available");
                 update::upgrade_to(&version, &argv0, &argv).expect("Upgrade");
             },
             None => {
-                println!("No update available");
+                debug!("No update available");
             },
         }
     }
 
     loop {
-        match ttdash.one_iteration(display, matches.opt_str("save-image"), &prev_processed_data) {
-            Err(err) => eprintln!("{}", err),
+        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data) {
+            Err(err) => error!("{}", err),
             Ok(processed_data) => prev_processed_data = processed_data,
         }
 

@@ -70,8 +70,8 @@ pub fn updater_configured() -> bool {
 pub fn binary_update_available() -> Option<TTDashUpgradeTarget> {
     match (local_version(), available_target()) {
         (Ok(local_version), Ok(available_target)) => {
-            println!("LOCAL VERSION: {:?}", local_version);
-            println!("AVAILABLE VERSION: {:?}", available_target.version);
+            debug!("LOCAL VERSION: {:?}", local_version);
+            debug!("AVAILABLE VERSION: {:?}", available_target.version);
             if available_target.version > local_version {
                 return Some(available_target);
             } else {
@@ -79,7 +79,7 @@ pub fn binary_update_available() -> Option<TTDashUpgradeTarget> {
             }
         },
         (_, Err(remote_err)) => {
-            println!("Error determining remote version: {:?}", remote_err);
+            error!("Error determining remote version: {:?}", remote_err);
             return None;
         }
         _ => {
@@ -93,18 +93,17 @@ fn md5sum(filename: &str) -> result::TTDashResult<String> {
     use md5::Digest;
 
     info!("md5sum {}", filename);
-    println!("md5sum {}", filename);
     let mut disk_file = std::fs::File::open(&filename)?;
     let mut disk_contents = vec![];
     disk_file.read_to_end(&mut disk_contents)?;
-    println!("md5sum read done len={}", disk_contents.len());
+    debug!("md5sum read done len={}", disk_contents.len());
     let mut hasher = md5::Md5::new();
-    println!("md5sum hasher newed");
+    debug!("md5sum hasher newed");
     hasher.input(&disk_contents);
-    println!("md5sum inputted");
+    debug!("md5sum inputted");
     let result = hasher.result();
     let encoded_result: String = hex::encode(result.as_slice());
-    println!("md5sum: {}", encoded_result);
+    info!("md5sum: {}", encoded_result);
     return Ok(encoded_result);
 }
 
@@ -113,7 +112,6 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
     let filename = format!("/tmp/ttdash-download-{}.{}",
                            target.version.major, target.version.minor);
 
-    println!("Target md5sum: {}", target.md5sum);
     let good_binary_exists =  match md5sum(&filename) {
         Ok(sum) => (sum == target.md5sum),
         _ => false,
@@ -126,7 +124,7 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
 
     assert_eq!(target.md5sum, md5sum(&filename)?);
 
-    println!("Download complete");
+    info!("Downloaded version {}.{}.", target.version.major, target.version.minor);
 
     std::fs::set_permissions(
         &filename, std::os::unix::fs::PermissionsExt::from_mode(0o777))?;
@@ -138,7 +136,7 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
     let argv_c: Vec<std::ffi::CString> = argv.iter()
         .map(|s| std::ffi::CString::new(s.as_str()).expect("cstringing argv")).collect();
 
-    println!("Execing!");
+    info!("Execing new binary.");
     nix::unistd::execv(&argv0_c, &argv_c).unwrap();
 
     return Ok(());
