@@ -67,7 +67,25 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData) -> result::TTDashResult<subway::ProcessedData>{
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool) -> result::TTDashResult<subway::ProcessedData>{
+        if auto_update {
+            match update::binary_update_available() {
+                Some(target) => {
+                    info!("Upgrade available to version {}.", target.version);
+                    let argv0 = std::env::args().nth(0).expect("argv0");
+                    let argv: Vec<String> = std::env::args().collect();
+                    match update::upgrade_to(&target, &argv0, &argv) {
+                        Err(err) => error!("Upgrade error: {:?}", err),
+                        _ => {},
+                    }
+                },
+                None => {
+                    debug!("No update available");
+                },
+            }
+        }
+
+
         let processed_data = subway::fetch_and_process_data()?;
 
         // TODO(mrjones): Make this async or something?
@@ -159,7 +177,7 @@ fn main() {
     info!("Command Line: {:?}", args);
     match update::local_version() {
         Ok(version) => {
-            info!("TTDash version {}.{}", version.major, version.minor);
+            info!("TTDash version {}", version);
         },
         _ => {},
     }
@@ -179,7 +197,7 @@ fn main() {
     let auto_update = matches.opt_present("auto-update");
     let local_png: Option<String> = matches.opt_str("save-image");
 
-    info!("Running. display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}", display, one_shot, debug_port, auto_update, local_png);
+    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}", display, one_shot, debug_port, auto_update, local_png);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -193,21 +211,10 @@ fn main() {
 
     if auto_update {
         assert!(update::updater_configured());
-
-        let argv0 = std::env::args().nth(0).expect("argv0");
-        let argv: Vec<String> = std::env::args().collect();
-        match update::binary_update_available() {
-            Some(version) => {
-                update::upgrade_to(&version, &argv0, &argv).expect("Upgrade");
-            },
-            None => {
-                debug!("No update available");
-            },
-        }
     }
 
     loop {
-        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data) {
+        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update) {
             Err(err) => error!("{}", err),
             Ok(processed_data) => prev_processed_data = processed_data,
         }

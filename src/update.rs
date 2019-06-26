@@ -15,13 +15,19 @@ pub const VERSION: Option<&'static str> = option_env!("TTDASH_VERSION");
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct TTDashVersion {
-    pub major: i32,
-    pub minor: i32,
+    major: i32,
+    minor: i32,
+}
+
+impl std::fmt::Display for TTDashVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        return write!(f, "{}.{}", self.major, self.minor);
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct TTDashUpgradeTarget {
-    version: TTDashVersion,
+    pub version: TTDashVersion,
     md5sum: String,
     url: String,
 }
@@ -124,7 +130,7 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
 
     assert_eq!(target.md5sum, md5sum(&filename)?);
 
-    info!("Downloaded version {}.{}.", target.version.major, target.version.minor);
+    info!("Downloaded version {}.", target.version);
 
     std::fs::set_permissions(
         &filename, std::os::unix::fs::PermissionsExt::from_mode(0o777))?;
