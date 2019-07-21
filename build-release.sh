@@ -8,11 +8,21 @@ fi
 
 echo "Building version [$1.$2]";
 
-PATH=$PATH:/home/mrjones/src/pitools/arm-bcm2708/arm-linux-gnueabihf/bin/ OPENSSL_INCLUDE_DIR=/home/mrjones/arm/include OPENSSL_LIB_DIR=/home/mrjones/arm/lib TTDASH_VERSION="$1.$2" cargo build --target arm-unknown-linux-gnueabihf
+# ===
 
-binary=target/arm-unknown-linux-gnueabihf/debug/ttdash
-checksum=$(md5sum $binary | awk '{print $1}')
-cp $binary /var/www/html/ttdash-$1.$2
+cargoBinary=target/arm-unknown-linux-gnueabihf/debug/ttdash
+track=arm
+
+versionFile=/var/www/html/ttdash-${track}.version
+servingBinaryShortFilename=ttdash-${track}.${1}.${2}
+servingBinaryFullPath=/var/www/html/${servingBinaryShortFilename}
+
+# ===
+
+PATH=$PATH:/home/mrjones/src/pitools/arm-bcm2708/arm-linux-gnueabihf/bin/ OPENSSL_INCLUDE_DIR=/home/mrjones/arm/include OPENSSL_LIB_DIR=/home/mrjones/arm/lib TTDASH_VERSION="${1}.${2}" cargo build --target arm-unknown-linux-gnueabihf
+
+checksum=$(md5sum ${cargoBinary} | awk '{print $1}')
+cp ${cargoBinary} ${servingBinaryFullPath}
 
 newBody=$(cat <<EOF
 {
@@ -21,10 +31,10 @@ newBody=$(cat <<EOF
     "minor": $2
   },
   "md5sum": "${checksum}",
-  "url": "http://linode.mrjon.es/ttdash-$1.$2"
+  "url": "http://linode.mrjon.es/${servingBinaryShortFilename}"
 }
 EOF
 )
 
-cp /var/www/html/ttdash.version{,.bak}
-echo $newBody > /var/www/html/ttdash.version
+cp ${versionFile}{,.bak} | true
+echo ${newBody} > ${versionFile}
