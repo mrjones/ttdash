@@ -1,7 +1,7 @@
 // TODO:
-// - Install new binary
 // - Compression
 // - Faster MD5Sum
+// - Think about how this interacts with systemd (i.e. will systemd try to restart the old binary)
 
 extern crate hex;
 extern crate md5;
@@ -13,6 +13,8 @@ use result;
 
 pub const VERSION: Option<&'static str> = option_env!("TTDASH_VERSION");
 
+const TRACK: &'static str = "arm";  // TODO(mrjones): Make this configurable
+
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct TTDashVersion {
     major: i32,
@@ -22,6 +24,12 @@ pub struct TTDashVersion {
 impl std::fmt::Display for TTDashVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         return write!(f, "{}.{}", self.major, self.minor);
+    }
+}
+
+impl TTDashVersion {
+    pub fn to_string(&self) -> String {
+        return format!("{}.{}", self.major, self.minor);
     }
 }
 
@@ -51,7 +59,8 @@ fn parse_version(version_str: &str) -> result::TTDashResult<TTDashVersion> {
 }
 
 fn available_target() -> result::TTDashResult<TTDashUpgradeTarget> {
-    let body = reqwest::get("http://linode.mrjon.es/ttdash.version")?.text()?;
+    let body = reqwest::get(
+        &format!("http://linode.mrjon.es/ttdash-{}.version", TRACK))?.text()?;
 
     let target_info: TTDashUpgradeTarget = serde_json::from_str(&body)?;
 
@@ -78,6 +87,7 @@ pub fn binary_update_available() -> Option<TTDashUpgradeTarget> {
         (Ok(local_version), Ok(available_target)) => {
             debug!("LOCAL VERSION: {:?}", local_version);
             debug!("AVAILABLE VERSION: {:?}", available_target.version);
+            debug!("TRACK: {}", TRACK);
             if available_target.version > local_version {
                 return Some(available_target);
             } else {
@@ -98,7 +108,7 @@ fn md5sum(filename: &str) -> result::TTDashResult<String> {
     use std::io::Read;
     use md5::Digest;
 
-    info!("md5sum {}", filename);
+    debug!("md5sum {}", filename);
     let mut disk_file = std::fs::File::open(&filename)?;
     let mut disk_contents = vec![];
     disk_file.read_to_end(&mut disk_contents)?;
@@ -125,7 +135,9 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
 
     if !good_binary_exists {
         let mut local_file = std::fs::File::create(&filename)?;
+        info!("Downloading {}...", &target.url);
         reqwest::get(&target.url)?.copy_to(&mut local_file)?;
+        info!("Download complete.");
     }
 
     assert_eq!(target.md5sum, md5sum(&filename)?);

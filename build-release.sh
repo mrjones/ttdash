@@ -10,7 +10,7 @@ echo "Building version [$1.$2]";
 
 # ===
 
-cargoBinary=target/arm-unknown-linux-gnueabihf/debug/ttdash
+cargoBinary=target/arm-unknown-linux-gnueabihf/release/ttdash
 track=arm
 
 versionFile=/var/www/html/ttdash-${track}.version
@@ -19,7 +19,7 @@ servingBinaryFullPath=/var/www/html/${servingBinaryShortFilename}
 
 # ===
 
-PATH=$PATH:/home/mrjones/src/pitools/arm-bcm2708/arm-linux-gnueabihf/bin/ OPENSSL_INCLUDE_DIR=/home/mrjones/arm/include OPENSSL_LIB_DIR=/home/mrjones/arm/lib TTDASH_VERSION="${1}.${2}" cargo build --target arm-unknown-linux-gnueabihf
+PATH=$PATH:/home/mrjones/src/pitools/arm-bcm2708/arm-linux-gnueabihf/bin/ OPENSSL_INCLUDE_DIR=/home/mrjones/arm/include OPENSSL_LIB_DIR=/home/mrjones/arm/lib TTDASH_VERSION="${1}.${2}" cargo build --target arm-unknown-linux-gnueabihf --release
 
 checksum=$(md5sum ${cargoBinary} | awk '{print $1}')
 cp ${cargoBinary} ${servingBinaryFullPath}

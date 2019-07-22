@@ -101,6 +101,7 @@ impl<'a> TTDash<'a> {
         let imgbuf = drawing::generate_image(
             &processed_data,
             self.weather_display.as_ref(),
+            update::local_version().ok().map(|v| v.to_string()),
             &self.styles)?;
 
         if png_out.is_some() {

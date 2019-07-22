@@ -25,6 +25,7 @@ const EPD_HEIGHT: usize = 384;
 
 pub fn generate_image(data: &subway::ProcessedData,
                       weather_display: Option<&weather::WeatherDisplay>,
+                      version: Option<String>,
                       styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
 
@@ -34,7 +35,13 @@ pub fn generate_image(data: &subway::ProcessedData,
         draw_weather(&mut imgbuf, styles, weather_display.unwrap())?;
     }
 
+    draw_version(&mut imgbuf, styles, version.unwrap_or("UNKNOWN VERSION".to_string()).as_ref());
+
     return Ok(imgbuf);
+}
+
+fn draw_version(imgbuf: &mut image::GrayImage, styles: &Styles, version: &str) {
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 570, 5, scale(15.0), &styles.font, version);
 }
 
 

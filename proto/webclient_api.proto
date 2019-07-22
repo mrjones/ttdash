@@ -48,6 +48,7 @@ message StationStatus {
   optional string id = 5;
   repeated LineArrivals line = 2;
   optional int64 data_timestamp = 3;
+  repeated SubwayStatusMessage status_message = 6;
 
   optional DebugInfo debug_info = 4;
 }
@@ -85,4 +86,20 @@ message TrainArrivalHistory {
   optional DebugInfo debug_info = 1;
 
   repeated TrainArrivalHistoryEntry history = 2;
+}
+
+message SubwayStatusMessage {
+  optional string summary = 1;
+  optional string long_description = 2;
+  repeated AffectedLineStatus affected_line = 3;
+  optional bool planned = 4;
+  optional string reason_name = 5;
+  optional int32 priority = 6;
+  optional int64 publish_timestamp = 7;
+  optional string id = 8;
+}
+
+message AffectedLineStatus {
+  optional string line = 1;
+  optional Direction direction = 2;
 }
