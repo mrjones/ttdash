@@ -139,13 +139,13 @@ pub fn get_weather_display(now: i64) -> result::TTDashResult<WeatherDisplay> {
     let mut max_dew_point = None;
 
     let mut precip_by_hour = std::collections::BTreeMap::new();
-    let now_ts = now - 3600;
+    let min_ts = now - 3600;
 
     let mut current_t = None;
 
     for (hour, values) in &dense_forecast.hours {
         let local_time = chrono_tz::US::Eastern.timestamp(hour.timestamp(), 0);
-        if hour.timestamp() < now_ts {
+        if hour.timestamp() < min_ts {
             continue;
         }
 
