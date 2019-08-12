@@ -61,7 +61,7 @@ impl<'a> TTDash<'a> {
     }
 
     fn update_weather(&mut self, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
-        self.weather_display = Some(weather::get_weather_display()?);
+        self.weather_display = Some(weather::get_weather_display(now.timestamp())?);
         self.forecast_timestamp = *now;
 
         return Ok(());

@@ -124,7 +124,7 @@ pub struct WeatherDisplay {
     pub days: std::collections::BTreeMap<chrono::Date<chrono_tz::Tz>, WeatherDisplayDay>,
 }
 
-pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
+pub fn get_weather_display(now: i64) -> result::TTDashResult<WeatherDisplay> {
     use chrono::Timelike;
     use chrono::TimeZone;
 
@@ -139,7 +139,7 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
     let mut max_dew_point = None;
 
     let mut precip_by_hour = std::collections::BTreeMap::new();
-    let now_ts = chrono::Utc::now().timestamp() - 3600;
+    let now_ts = now - 3600;
 
     let mut current_t = None;
 
