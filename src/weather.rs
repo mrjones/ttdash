@@ -287,42 +287,30 @@ fn real_fetch(url: &str) -> result::TTDashResult<String> {
     return Ok(response_body);
 }
 
+fn entry_ctof(e: GridForecastEntry) -> GridForecastEntry {
+    let mut e2 = e.clone();
+    e2.value = ctof(e.value);
+    return e2;
+}
+
 pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<GridForecast> {
 
     let url = format!("https://api.weather.gov/gridpoints/OKX/33,32");
-
-    //    let response_body = real_fetch(&url)?;
-
     let response_body = fetch_fn(&url)?;
-
-//    let mut response = reqwest::get(&url)?;
-//    let mut response_body = String::new();
-//    response.read_to_string(&mut response_body)?;
-
     let forecast: NwsApiGridForecast = serde_json::from_str(&response_body)?;
 
     let precip_probs : result::TTDashResult<Vec<GridForecastEntry>> =
         forecast.properties.probability_of_precipitation.values.iter().map(parse_grid_entry).collect();
     let temps : result::TTDashResult<Vec<GridForecastEntry>> =
-        forecast.properties.temperature.values.iter().
-        map(parse_grid_entry).
-        map(|e_res| {
-            return e_res.map(|e| {
-                let mut e2 = e.clone();
-                e2.value = ctof(e.value);
-                return e2;
-            });
-        }).collect();
+        forecast.properties.temperature.values.iter()
+        .map(parse_grid_entry)
+        .map(|e_res| e_res.map(entry_ctof))
+        .collect();
     let dew_points : result::TTDashResult<Vec<GridForecastEntry>> =
-        forecast.properties.dewpoint.values.iter().
-        map(parse_grid_entry).
-        map(|e_res| {
-            return e_res.map(|e| {
-                let mut e2 = e.clone();
-                e2.value = ctof(e.value);
-                return e2;
-            })
-        }).collect();
+        forecast.properties.dewpoint.values.iter()
+        .map(parse_grid_entry)
+        .map(|e_res| e_res.map(entry_ctof))
+        .collect();
     return Ok(GridForecast{
         precip_prob: precip_probs?,
         temp: temps?,
