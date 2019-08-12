@@ -59,6 +59,7 @@ struct NwsApiGridProperty {
 struct NwsApiGridProperties {
     temperature: NwsApiGridProperty,
     probability_of_precipitation: NwsApiGridProperty,
+    dewpoint: NwsApiGridProperty,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -91,12 +92,14 @@ pub struct GridForecastEntry {
 pub struct GridForecast {
     pub precip_prob: Vec<GridForecastEntry>,
     pub temp: Vec<GridForecastEntry>,
+    pub dew_point: Vec<GridForecastEntry>,
 }
 
 #[derive(Debug)]
 pub struct DenseGridHour {
     pub precip_prob: f32,
     pub temperature: f32,
+    pub dew_point: f32,
 }
 
 #[derive(Debug)]
@@ -107,6 +110,9 @@ pub struct DenseGridForecast {
 pub struct WeatherDisplayDay {
     pub min_t: f32,
     pub max_t: f32,
+
+    pub max_dew_point: f32,
+
     pub precip_by_hour: std::collections::BTreeMap<u32, f32>,
 }
 
@@ -130,6 +136,8 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
     let mut current_date = None;
     let mut min_t = None;
     let mut max_t = None;
+    let mut max_dew_point = None;
+
     let mut precip_by_hour = std::collections::BTreeMap::new();
     let now_ts = chrono::Utc::now().timestamp() - 3600;
 
@@ -148,6 +156,7 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
                     days.insert(current_date, WeatherDisplayDay{
                         min_t: min_t.unwrap(),
                         max_t: max_t.unwrap(),
+                        max_dew_point: max_dew_point.unwrap(),
                         precip_by_hour: precip_by_hour,
                     });
                 },
@@ -158,6 +167,7 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
             current_date = Some(local_time.date());
             min_t = None;
             max_t = None;
+            max_dew_point = None;
             precip_by_hour = std::collections::BTreeMap::new();
         }
 
@@ -171,6 +181,10 @@ pub fn get_weather_display() -> result::TTDashResult<WeatherDisplay> {
 
         if max_t.is_none() || values.temperature > max_t.unwrap() {
             max_t = Some(values.temperature);
+        }
+
+        if max_dew_point.is_none() || values.dew_point > max_dew_point.unwrap() {
+            max_dew_point = Some(values.dew_point);
         }
 
         precip_by_hour.insert(local_time.hour(), values.precip_prob);
@@ -279,9 +293,20 @@ pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
                 return e2;
             });
         }).collect();
+    let dew_points : result::TTDashResult<Vec<GridForecastEntry>> =
+        forecast.properties.dewpoint.values.iter().
+        map(parse_grid_entry).
+        map(|e_res| {
+            return e_res.map(|e| {
+                let mut e2 = e.clone();
+                e2.value = 32.0 + e.value * 9.0 / 5.0;
+                return e2;
+            })
+        }).collect();
     return Ok(GridForecast{
         precip_prob: precip_probs?,
         temp: temps?,
+        dew_point: dew_points?,
     });
 }
 
@@ -294,7 +319,7 @@ pub fn densify_grid_forecast(sparse: &GridForecast) -> result::TTDashResult<Dens
         for i in 0..precip_entry.duration.num_hours() {
             let hour = precip_entry.time + chrono::Duration::hours(i);
             let mut hour_entry = result.hours.entry(hour)
-                .or_insert(DenseGridHour{precip_prob: 0.0, temperature: 0.0});
+                .or_insert(DenseGridHour{precip_prob: 0.0, temperature: 0.0, dew_point: 0.0});
 
             hour_entry.precip_prob = precip_entry.value;
         }
@@ -304,9 +329,19 @@ pub fn densify_grid_forecast(sparse: &GridForecast) -> result::TTDashResult<Dens
         for i in 0..temp_entry.duration.num_hours() {
             let hour = temp_entry.time + chrono::Duration::hours(i);
             let mut hour_entry = result.hours.entry(hour)
-                .or_insert(DenseGridHour{precip_prob: 0.0, temperature: 0.0});
+                .or_insert(DenseGridHour{precip_prob: 0.0, temperature: 0.0, dew_point: 0.0});
 
             hour_entry.temperature = temp_entry.value;
+        }
+    }
+
+    for dew_point_entry in &sparse.dew_point {
+        for i in 0..dew_point_entry.duration.num_hours() {
+            let hour = dew_point_entry.time + chrono::Duration::hours(i);
+            let mut hour_entry = result.hours.entry(hour)
+                .or_insert(DenseGridHour{precip_prob: 0.0, temperature: 0.0, dew_point: 0.0});
+
+            hour_entry.dew_point = dew_point_entry.value;
         }
     }
 

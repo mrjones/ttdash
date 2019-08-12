@@ -189,6 +189,14 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
         scale(80.0), &styles.font_bold,
         &format!("{}° / {}°", first_info.min_t, first_info.max_t));
 
+
+//    imageproc::drawing::draw_text_mut(
+//        imgbuf, styles.color_black,
+//        /* x= */ left_x as u32,
+//        /* y= */ (top_y - 100) as u32,
+//        scale(30.0), &styles.font_bold,
+//        &format!("DP: {}", first_info.max_dew_point));
+
     return Ok(());
 }
 
