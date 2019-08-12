@@ -125,10 +125,14 @@ pub struct WeatherDisplay {
 }
 
 pub fn get_weather_display(now: i64) -> result::TTDashResult<WeatherDisplay> {
+    return get_weather_display_ext(now, real_fetch);
+}
+
+fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<WeatherDisplay> {
     use chrono::Timelike;
     use chrono::TimeZone;
 
-    let grid_forecast = fetch_grid_forecast()?;
+    let grid_forecast = fetch_grid_forecast(fetch_fn)?;
     let dense_forecast = densify_grid_forecast(&grid_forecast)?;
 
     let mut days = std::collections::BTreeMap::new();
@@ -270,14 +274,26 @@ fn parse_grid_entry(entry: &NwsApiGridValue) -> result::TTDashResult<GridForecas
     });
 }
 
-pub fn fetch_grid_forecast() -> result::TTDashResult<GridForecast> {
+fn real_fetch(url: &str) -> result::TTDashResult<String> {
     use std::io::Read;
+
+    let mut response = reqwest::get(url)?;
+    let mut response_body = String::new();
+    response.read_to_string(&mut response_body)?;
+    return Ok(response_body);
+}
+
+pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<GridForecast> {
 
     let url = format!("https://api.weather.gov/gridpoints/OKX/33,32");
 
-    let mut response = reqwest::get(&url)?;
-    let mut response_body = String::new();
-    response.read_to_string(&mut response_body)?;
+    //    let response_body = real_fetch(&url)?;
+
+    let response_body = fetch_fn(&url)?;
+
+//    let mut response = reqwest::get(&url)?;
+//    let mut response_body = String::new();
+//    response.read_to_string(&mut response_body)?;
 
     let forecast: NwsApiGridForecast = serde_json::from_str(&response_body)?;
 
