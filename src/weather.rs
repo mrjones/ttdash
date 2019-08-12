@@ -300,7 +300,9 @@ pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -
     let forecast: NwsApiGridForecast = serde_json::from_str(&response_body)?;
 
     let precip_probs : result::TTDashResult<Vec<GridForecastEntry>> =
-        forecast.properties.probability_of_precipitation.values.iter().map(parse_grid_entry).collect();
+        forecast.properties.probability_of_precipitation.values.iter()
+        .map(parse_grid_entry)
+        .collect();
     let temps : result::TTDashResult<Vec<GridForecastEntry>> =
         forecast.properties.temperature.values.iter()
         .map(parse_grid_entry)
