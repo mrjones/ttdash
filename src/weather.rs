@@ -124,6 +124,10 @@ pub struct WeatherDisplay {
     pub days: std::collections::BTreeMap<chrono::Date<chrono_tz::Tz>, WeatherDisplayDay>,
 }
 
+fn ctof(c: f32) -> f32 {
+    return 32.0 + c * 9.0 / 5.0;
+}
+
 pub fn get_weather_display(now: i64) -> result::TTDashResult<WeatherDisplay> {
     return get_weather_display_ext(now, real_fetch);
 }
@@ -305,7 +309,7 @@ pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -
         map(|e_res| {
             return e_res.map(|e| {
                 let mut e2 = e.clone();
-                e2.value = 32.0 + e.value * 9.0 / 5.0;
+                e2.value = ctof(e.value);
                 return e2;
             });
         }).collect();
@@ -315,7 +319,7 @@ pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -
         map(|e_res| {
             return e_res.map(|e| {
                 let mut e2 = e.clone();
-                e2.value = 32.0 + e.value * 9.0 / 5.0;
+                e2.value = ctof(e.value);
                 return e2;
             })
         }).collect();
@@ -414,6 +418,7 @@ mod tests {
     extern crate chrono;
 
     use super::parse_duration;
+    use super::ctof;
 
     #[test]
     fn simple_time_durations() {
@@ -438,5 +443,44 @@ mod tests {
         assert_eq!(chrono::Duration::minutes(90) + chrono::Duration::seconds(10),
                    parse_duration("PT1H30M10S").unwrap());
         assert_eq!(chrono::Duration::hours(36), parse_duration("P1DT12H").unwrap());
+    }
+
+    #[test]
+    fn fetch_golden_test() {
+        let golden_fetcher = |_: &str| {
+            // curl 'https://api.weather.gov/gridpoints/OKX/33,32' > testdata/nwsapi.txt
+
+            return Ok(std::fs::read_to_string("testdata/nwsapi.txt")
+                .expect("Something went wrong reading the file"));
+        };
+
+        // $ date -d @1565638425
+        // Mon Aug 12 19:33:45 UTC 2019
+        // GMT is 4 hours ahead
+        let golden_timestamp = 1565638425;
+
+        let result = super::get_weather_display_ext(golden_timestamp, golden_fetcher).unwrap();
+
+        assert_eq!(ctof(20.5555555555556), result.overall_min_t);
+        assert_eq!(ctof(30.000000000000057), result.overall_max_t);
+        assert_eq!(ctof(30.000000000000057), result.current_t);
+
+        let (_first_date, first_data) = result.days.iter().nth(0).expect("couldn't fetch first day");
+        assert_eq!(ctof(25.5555555555556), first_data.min_t);
+        assert_eq!(ctof(30.000000000000057), first_data.max_t);
+        assert_eq!(ctof(17.777777777777828), first_data.max_dew_point);
+
+        let mut expected_precip = std::collections::BTreeMap::new();
+        expected_precip.insert(15, 0.0);  // Don't really _need_ old points
+        expected_precip.insert(16, 0.0);
+        expected_precip.insert(17, 0.0);
+        expected_precip.insert(18, 2.0);
+
+        expected_precip.insert(19, 2.0);
+        expected_precip.insert(20, 2.0);
+        expected_precip.insert(21, 2.0);
+        expected_precip.insert(22, 2.0);
+        expected_precip.insert(23, 2.0);
+        assert_eq!(expected_precip, first_data.precip_by_hour);
     }
 }
