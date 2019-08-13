@@ -91,9 +91,16 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
         y = y + y_step;
     }
 
-    let outbound_text: String = match data.upcoming_outbound_trains.first() {
-        None => "- NO OUTBOUND TRAIN -".to_string(),
-        Some((timestamp, line)) => format!("Outbound {}: {}", line, countdown_summary(now, *timestamp)).to_string(),
+
+    let outbound_text: String = if data.upcoming_outbound_trains.is_empty() {
+        "- NO OUTBOUND TRAIN -".to_string()
+    } else {
+        format!("Outbound: {}", data.upcoming_outbound_trains.iter()
+                .take(3)
+                .filter(|(_, line)| line == "R")
+                .map(|(ts, _)| countdown_summary(now, *ts))
+                .collect::<Vec<String>>()
+                .join(", "))
     };
 
     imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 320, scale(50.0), &styles.font, &outbound_text);
@@ -188,6 +195,28 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
         /* y= */ (top_y - 80) as u32,
         scale(80.0), &styles.font_bold,
         &format!("{}° / {}°", first_info.min_t, first_info.max_t));
+
+    // Dew point ranges:
+    // [0]  < 55: Pleasant
+    // [1] 56-60: Comfortable
+    // [2] 61-65: Sticky
+    // [3] 66-70: Uncomfortable
+    // [4] 71-75: Oppressive
+    // [5]  > 76: Miserable
+    let dew_point = first_info.max_dew_point as i32;
+    let dew_point_bucket =
+        std::cmp::min(5, std::cmp::max(0, (dew_point - 50) / 5));
+
+    let dp_box_size = 15;
+    let dp_box_gap = 5;
+    for i in 0..5 as i32 {
+        let rect = imageproc::rect::Rect::at(left_x + 215, top_y - 85 - i * (dp_box_size + dp_box_gap)).of_size(dp_box_size as u32, dp_box_size as u32);
+        if i < dew_point_bucket {
+            imageproc::drawing::draw_filled_rect_mut(imgbuf, rect, styles.color_black);
+        } else {
+            imageproc::drawing::draw_hollow_rect_mut(imgbuf, rect, styles.color_black);
+        }
+    }
 
 
 //    imageproc::drawing::draw_text_mut(
