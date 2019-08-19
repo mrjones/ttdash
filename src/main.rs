@@ -110,7 +110,8 @@ impl<'a> TTDash<'a> {
 
         let mut needs_redraw = false;
 
-        if prev_processed_data.big_countdown != processed_data.big_countdown {
+        if prev_processed_data.big_countdown != processed_data.big_countdown &&
+            processed_data.data_timestamp >= prev_processed_data.data_timestamp {
             info!("Updating bignum {:?} -> {:?}",
                      prev_processed_data.big_countdown,
                      processed_data.big_countdown);

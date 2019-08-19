@@ -14,7 +14,7 @@ module example_intersection()
   // Options for case
   thickness = 6;
   angle = 20;
-  bezel = 15;
+  bezel = 20;
   base_depth = 50;
   cable_notch_width = 30;
 

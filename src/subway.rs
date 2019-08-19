@@ -12,6 +12,7 @@ pub struct ProcessedData {
     pub big_countdown: Option<String>,
     pub big_countdown_line: Option<String>,
     pub station_name: String,
+    pub data_timestamp: i64,
 }
 
 impl ProcessedData {
@@ -22,6 +23,7 @@ impl ProcessedData {
             big_countdown: None,
             big_countdown_line: None,
             station_name: "".to_string(),
+            data_timestamp: 0,
         };
     }
 }
@@ -76,6 +78,7 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
             big_countdown: Some(drawing::countdown_summary(now, first_arrival_ts)),
             big_countdown_line: Some(first_arrival_line),
             station_name: data.get_name().to_string(),
+            data_timestamp: data.get_data_timestamp(),
         });
     }
 }
