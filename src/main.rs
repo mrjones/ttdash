@@ -69,7 +69,7 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool) -> result::TTDashResult<subway::ProcessedData>{
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool) -> result::TTDashResult<Option<subway::ProcessedData>> {
         if auto_update {
             match update::binary_update_available() {
                 Some(target) => {
@@ -100,20 +100,17 @@ impl<'a> TTDash<'a> {
             }
         }
 
-        let imgbuf = drawing::generate_image(
-            &processed_data,
-            self.weather_display.as_ref(),
-            update::local_version().ok().map(|v| v.to_string()),
-            &self.styles)?;
-
-        if png_out.is_some() {
-            let _ = imgbuf.save(png_out.unwrap())?;
-        }
-
         let mut needs_redraw = false;
 
+        let data_went_back_in_time = processed_data.data_timestamp < prev_processed_data.data_timestamp;
+        if data_went_back_in_time {
+            warn!("Ignoring data ({}) that's older than what's already displayed ({}).",
+                  processed_data.data_timestamp,
+                  prev_processed_data.data_timestamp);
+        }
+
         if prev_processed_data.big_countdown != processed_data.big_countdown &&
-            processed_data.data_timestamp >= prev_processed_data.data_timestamp {
+            !data_went_back_in_time {
             info!("Updating bignum {:?} -> {:?}",
                      prev_processed_data.big_countdown,
                      processed_data.big_countdown);
@@ -131,16 +128,25 @@ impl<'a> TTDash<'a> {
         }
 
         if needs_redraw {
+            let imgbuf = drawing::generate_image(
+                &processed_data,
+                self.weather_display.as_ref(),
+                update::local_version().ok().map(|v| v.to_string()),
+                &self.styles)?;
+
+            if png_out.is_some() {
+                let _ = imgbuf.save(png_out.unwrap())?;
+            }
+
             if display {
                 display::setup_and_display_image(&imgbuf)?;
             }
             self.last_redraw = Some(now);
+            return Ok(Some(processed_data));
         } else {
             debug!("Not refreshing.");
-            std::thread::sleep(std::time::Duration::from_secs(5));
+            return Ok(None)
         }
-
-        return Ok(processed_data);
     }
 }
 
@@ -229,11 +235,17 @@ fn main() {
     loop {
         match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update) {
             Err(err) => error!("{}", err),
-            Ok(processed_data) => prev_processed_data = processed_data,
+            Ok(processed_data) => {
+                if let Some(processed_data) = processed_data {
+                    prev_processed_data = processed_data;
+                }
+            }
         }
 
         if one_shot {
             break;
         }
+
+        std::thread::sleep(std::time::Duration::from_secs(5));
     }
 }
