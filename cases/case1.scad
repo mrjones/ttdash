@@ -55,14 +55,23 @@ module example_intersection()
               // Slightly larger inset a bit around edges
               // Leaves inset_thickness remaining
               translate([leftover_inset, leftover_bottom_inset, inset_thickness]) {
-                cube([screen_width + 2 * inset, screen_height + bottom_inset + inset, thickness-inset_thickness], center = false);
+                cube([screen_width + 2 * inset, frame_outside_height - leftover_bottom_inset, thickness-inset_thickness], center = false);
+              };
+            };
+
+            translate([0, 0, thickness - inset_thickness]) {
+              difference() {
+                cube([frame_outside_width, frame_outside_height, inset_thickness], center=false);
+                translate([main_bezel,bottom_bezel,0]) {
+                  cube([screen_width, screen_height + main_bezel, inset_thickness], center=false);
+                };
               };
             };
 
             // Add a back for the little slot
-            translate([0, leftover_bottom_inset, thickness - inset_thickness]) {
-              cube([frame_outside_width, bottom_inset, inset_thickness], center = false);
-            };
+//            translate([0, leftover_bottom_inset, thickness - inset_thickness]) {
+//              cube([frame_outside_width, bottom_inset, inset_thickness], center = false);
+//            };
 
           };
 

@@ -10,6 +10,7 @@ extern crate imageproc;
 extern crate md5;
 extern crate nix;
 extern crate protobuf;
+extern crate querystring;
 extern crate reqwest;
 extern crate rppal;
 extern crate rusttype;
@@ -171,11 +172,19 @@ fn format_log(
 fn main() {
     flexi_logger::Logger::with_env_or_str("info")
         .format(format_log)
+        .log_to_file()
+        .append()
+        .duplicate_to_stderr(flexi_logger::Duplicate::Info)
+        .rotate(
+            flexi_logger::Criterion::Size(10 * 1024 * 1024),
+            flexi_logger::Naming::Numbers,
+            flexi_logger::Cleanup::KeepLogFiles(10))
         .print_message()
         .start()
         .unwrap();
 
     let args: Vec<String> = std::env::args().collect();
+    info!(" - - - - - - - - - - - - - ");
     info!("Command Line: {:?}", args);
     match update::local_version() {
         Ok(version) => {
