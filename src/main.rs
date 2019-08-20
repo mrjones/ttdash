@@ -215,7 +215,8 @@ fn main() {
 
     match debug_port {
         Some(port) => {
-            std::thread::spawn(move || { debug::run_debug_server(&port); });
+            let local_png = local_png.clone();
+            std::thread::spawn(move || { debug::run_debug_server(&port, local_png); });
         },
         None => {},
     }

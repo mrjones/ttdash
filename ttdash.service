@@ -4,7 +4,7 @@ Description=TrainTrack Dashboard
 
 [Service]
 Type=simple
-ExecStart=/home/pi/ttdash --auto-update
+ExecStart=/home/pi/ttdash --auto-update --debug-port=4242
 
 [Install]
 WantedBy=multi-user.target
