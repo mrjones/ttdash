@@ -1,3 +1,4 @@
+extern crate pretty_bytes;
 extern crate querystring;
 extern crate simple_server;
 extern crate std;
@@ -85,7 +86,7 @@ fn main_page(response: &mut simple_server::ResponseBuilder, has_local_png: bool)
         let entry = entry?;
         if entry.path().to_string_lossy().ends_with(".log") {
             let filename = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-            body.push_str(&format!("<li><a href='/dumplog?log={}'>{}</a> [{} bytes]</li>", filename, filename, entry.metadata()?.len()));
+            body.push_str(&format!("<li><a href='/dumplog?log={}'>{}</a> [{}]</li>", filename, filename, pretty_bytes::converter::convert(entry.metadata()?.len() as f64)));
         }
     }
     body.push_str("</ul></div>");
