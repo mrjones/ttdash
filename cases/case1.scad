@@ -14,7 +14,8 @@ module example_intersection()
   // Options for case
   thickness = 6;
   angle = 20;
-  bezel = 20;
+  bottom_bezel = 20;
+  main_bezel = 10;
   base_depth = 50;
   cable_notch_width = 30;
 
@@ -26,11 +27,11 @@ module example_intersection()
   inset_thickness = 2;
 
   // Computed params
-  frame_outside_width = screen_width + 2 * bezel;
-  frame_outside_height = screen_height + 2 * bezel;
+  frame_outside_width = screen_width + 2 * main_bezel;
+  frame_outside_height = screen_height + bottom_bezel + main_bezel;
 
-  leftover_inset = bezel - inset;
-  leftover_bottom_inset = bezel - bottom_inset;
+  leftover_inset = main_bezel - inset;
+  leftover_bottom_inset = bottom_bezel - bottom_inset;
 
   // Increasing X: Left to right, looking straight on
   // Increasing Y: Down to up, looking straight on
@@ -47,7 +48,7 @@ module example_intersection()
               cube([frame_outside_width, frame_outside_height, thickness], center=false);
 
               // Punch a hole all the way through for visible part of the screen
-              translate([bezel,bezel,0]) {
+              translate([main_bezel, bottom_bezel,0]) {
                 cube([screen_width, screen_height, thickness], center= false);
               };
 
@@ -62,11 +63,12 @@ module example_intersection()
             translate([0, leftover_bottom_inset, thickness - inset_thickness]) {
               cube([frame_outside_width, bottom_inset, inset_thickness], center = false);
             };
+
           };
 
           // Remove a notch for the cable:
           translate([(frame_outside_width - cable_notch_width) / 2, 0, inset_thickness]) {
-            cube([cable_notch_width, bezel, thickness - inset_thickness], center = false);
+            cube([cable_notch_width, bottom_bezel, thickness - inset_thickness], center = false);
           };
         };
       };
