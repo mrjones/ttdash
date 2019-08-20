@@ -177,9 +177,9 @@ fn main() {
         .append()
         .duplicate_to_stderr(flexi_logger::Duplicate::Info)
         .rotate(
-            flexi_logger::Criterion::Size(10 * 1024 * 1024),
+            flexi_logger::Criterion::Size(1 * 1024 * 1024),
             flexi_logger::Naming::Numbers,
-            flexi_logger::Cleanup::KeepLogFiles(10))
+            flexi_logger::Cleanup::KeepLogFiles(100))
         .print_message()
         .start()
         .unwrap();
