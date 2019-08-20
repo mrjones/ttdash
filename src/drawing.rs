@@ -207,10 +207,11 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let dew_point_bucket =
         std::cmp::min(5, std::cmp::max(0, (dew_point - 50) / 5));
 
-    let dp_box_size = 15;
-    let dp_box_gap = 5;
+    let dp_box_width = 35;
+    let dp_box_height = 10;
+    let dp_box_gap = 10;
     for i in 0..5 as i32 {
-        let rect = imageproc::rect::Rect::at(left_x + 215, top_y - 85 - i * (dp_box_size + dp_box_gap)).of_size(dp_box_size as u32, dp_box_size as u32);
+        let rect = imageproc::rect::Rect::at(left_x + i * (dp_box_width + dp_box_gap), top_y).of_size(dp_box_width as u32, dp_box_height as u32);
         if i < dew_point_bucket {
             imageproc::drawing::draw_filled_rect_mut(imgbuf, rect, styles.color_black);
         } else {
