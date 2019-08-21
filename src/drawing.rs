@@ -143,29 +143,8 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
         let max_pct = (info.max_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
         let day_label = day_labels.get(date.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string();
 
-        imageproc::drawing::draw_text_mut(
-            imgbuf, styles.color_black,
-            /* x= */ left_x as u32 + day_count as u32 * day_width as u32 + (8 * hour_width),
-            /* y= */ (top_y + precip_bar_max_height) as u32,
-            scale(30.0), &styles.font_bold, &day_label);
 
-        let this_t_bar_height = std::cmp::max(
-            1, (t_bars_height as f32 * (max_pct - min_pct)) as u32);
-        imageproc::drawing::draw_filled_rect_mut(
-            imgbuf, imageproc::rect::Rect::at(
-                /* x= */ left_x + day_count * day_width as i32 + 6 * hour_width as i32,
-                /* y= */ top_y + t_bars_y_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
-                of_size(
-                    /* w= */ 12 * hour_width as u32,
-                    /* h= */ this_t_bar_height),
-            styles.color_black);
-
-        imageproc::drawing::draw_text_mut(
-            imgbuf, styles.color_black,
-            /* x = */ (left_x + day_count * day_width as i32 + (8 * hour_width as i32)) as u32,
-            /* y = */ (top_y + precip_bar_max_height + 75) as u32,
-            scale(30.0), &styles.font, &format!("{:.0}", info.max_t));
-
+        // Precip bars
         for (hour, precip_prob) in &info.precip_by_hour {
             let bar_height = std::cmp::max(1, (precip_bar_max_height as f32 * (*precip_prob / 100.0)) as u32);
 
@@ -177,16 +156,42 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
                     .of_size(hour_width, bar_height),
                 styles.color_black);
         }
+
+        // Day Label (SMTWRFS)
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black,
+            /* x= */ left_x as u32 + day_count as u32 * day_width as u32 + (8 * hour_width),
+            /* y= */ (top_y + precip_bar_max_height) as u32,
+            scale(30.0), &styles.font_bold, &day_label);
+
+        // Temperature bar for this day
+        let this_t_bar_height = std::cmp::max(
+            1, (t_bars_height as f32 * (max_pct - min_pct)) as u32);
+        imageproc::drawing::draw_filled_rect_mut(
+            imgbuf, imageproc::rect::Rect::at(
+                /* x= */ left_x + day_count * day_width as i32 + 6 * hour_width as i32,
+                /* y= */ top_y + t_bars_y_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
+                of_size(
+                    /* w= */ 12 * hour_width as u32,
+                    /* h= */ this_t_bar_height),
+            styles.color_black);
+
+        // High temperature
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black,
+            /* x = */ (left_x + day_count * day_width as i32 + (8 * hour_width as i32)) as u32,
+            /* y = */ (top_y + precip_bar_max_height + 75) as u32,
+            scale(30.0), &styles.font, &format!("{:.0}", info.max_t));
     }
 
     return Ok(());
 }
 
 fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
-    let left_x = 400;
-    let top_y = 200;
+    let left_x: i32 = 400;
+    let top_y: i32 = 10;
 
-    draw_daily_forecast(left_x, top_y, imgbuf, styles, weather_display)?;
+    draw_daily_forecast(left_x, top_y + 190, imgbuf, styles, weather_display)?;
 
     let first_entry = weather_display.days.iter().nth(0).ok_or(
         result::make_error("missing first entry"))?;
@@ -194,14 +199,14 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
-        /* x= */ 440, /* y= */ 0,
+        /* x= */ (left_x + 40) as u32, /* y= */ top_y as u32,
         scale(140.0),
         &styles.font_black, &format!("{}°", weather_display.current_t));
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
         /* x= */ left_x as u32,
-        /* y= */ (top_y - 80) as u32,
+        /* y= */ (top_y + 100) as u32,
         scale(80.0), &styles.font_bold,
         &format!("{}° / {}°", first_info.min_t, first_info.max_t));
 
@@ -220,7 +225,7 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let dp_box_height = 15;
     let dp_box_gap = 10;
     for i in 0..5 as i32 {
-        let rect = imageproc::rect::Rect::at(left_x + i * (dp_box_width + dp_box_gap), top_y).of_size(dp_box_width as u32, dp_box_height as u32);
+        let rect = imageproc::rect::Rect::at(left_x + i * (dp_box_width + dp_box_gap), top_y + 190).of_size(dp_box_width as u32, dp_box_height as u32);
         if i < dew_point_bucket {
             imageproc::drawing::draw_filled_rect_mut(imgbuf, rect, styles.color_black);
         } else {
