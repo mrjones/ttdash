@@ -121,10 +121,10 @@ pub fn countdown_summary(now_ts: i64, arrival_ts: i64) -> String {
     return format!("{}", wait_seconds / 60);
 }
 
-fn draw_raindrop(x: i32, y: i32, imgbuf: &mut image::GrayImage, styles: &Styles) -> result::TTDashResult<()> {
+fn draw_raindrop(x: i32, y: i32, height: i32, imgbuf: &mut image::GrayImage, styles: &Styles) -> result::TTDashResult<()> {
     let x = x as f32;
     let y = y as f32;
-    let height = 30 as f32;
+    let height = height as f32;
     let bottom_horizontal_control_offset = height / 2.0;
     let top_vertical_control_offset = height / 3.0;
 
@@ -150,10 +150,7 @@ fn draw_raindrop(x: i32, y: i32, imgbuf: &mut image::GrayImage, styles: &Styles)
 fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
     use chrono::Datelike;
 
-    let precip_bar_max_height = 70;
-
-    let t_bars_height = 40;
-    let t_bars_y_offset = precip_bar_max_height + 30;
+    let precip_bar_max_height = 50;
 
     let hour_width: u32 = 2;
     let day_width: u32 = 24 * hour_width + 5;
@@ -163,14 +160,41 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
         result::make_error("missing first entry"))?;
     let first_date = first_entry.0;
 
+    let left_offset = 10; // Space for raindrop
+
     for (date, info) in weather_display.days.iter().take(4) {
         let day_count = date.num_days_from_ce() - first_date.num_days_from_ce();
-        let min_pct = (info.min_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
-        let max_pct = (info.max_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
         let day_label = day_labels.get(date.weekday().num_days_from_sunday() as usize).unwrap_or(&"?").to_string();
 
+        // Day Label (SMTWRFS)
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black,
+            /* x= */ (left_x + left_offset) as u32 + day_count as u32 * day_width as u32 + (8 * hour_width),
+            /* y= */ (top_y) as u32,
+            scale(40.0), &styles.font_bold, &day_label);
+
+        // High temperature
+        imageproc::drawing::draw_text_mut(
+            imgbuf, styles.color_black,
+            /* x = */ (left_x + left_offset + day_count * day_width as i32 + (4 * hour_width as i32)) as u32,
+            /* y = */ (top_y + 30) as u32,
+            scale(45.0), &styles.font, &format!("{:.0}", info.max_t));
+
         // Precip bars
-        draw_raindrop(left_x + 5, top_y + 30, imgbuf, styles)?;
+        let precip_bar_top = top_y + 75;
+        let precip_bar_width = (4 * day_width) as i32;
+
+        draw_raindrop(left_x, top_y + 90, 25, imgbuf, styles)?;
+        imageproc::drawing::draw_line_segment_mut(
+            imgbuf,
+            ((left_x + left_offset) as f32, precip_bar_top as f32),
+            ((left_x + left_offset + precip_bar_width) as f32, precip_bar_top as f32),
+            styles.color_black);
+        imageproc::drawing::draw_line_segment_mut(
+            imgbuf,
+            ((left_x + left_offset) as f32, (precip_bar_top + precip_bar_max_height) as f32),
+            ((left_x + left_offset + precip_bar_width) as f32, (precip_bar_top + precip_bar_max_height) as f32),
+            styles.color_black);
 
         for (hour, precip_prob) in &info.precip_by_hour {
             let bar_height = std::cmp::max(1, (precip_bar_max_height as f32 * (*precip_prob / 100.0)) as u32);
@@ -178,37 +202,11 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
             imageproc::drawing::draw_filled_rect_mut(
                 imgbuf,
                 imageproc::rect::Rect::at(
-                    /* x= */ left_x + day_count as i32 * day_width as i32 + *hour as i32 * hour_width as i32,
-                    /* y= */ top_y + precip_bar_max_height - bar_height as i32)
+                    /* x= */ left_x + left_offset + day_count as i32 * day_width as i32 + *hour as i32 * hour_width as i32,
+                    /* y= */ precip_bar_top + precip_bar_max_height - bar_height as i32)
                     .of_size(hour_width, bar_height),
                 styles.color_black);
         }
-
-        // Day Label (SMTWRFS)
-        imageproc::drawing::draw_text_mut(
-            imgbuf, styles.color_black,
-            /* x= */ left_x as u32 + day_count as u32 * day_width as u32 + (8 * hour_width),
-            /* y= */ (top_y + precip_bar_max_height) as u32,
-            scale(30.0), &styles.font_bold, &day_label);
-
-        // Temperature bar for this day
-        let this_t_bar_height = std::cmp::max(
-            1, (t_bars_height as f32 * (max_pct - min_pct)) as u32);
-        imageproc::drawing::draw_filled_rect_mut(
-            imgbuf, imageproc::rect::Rect::at(
-                /* x= */ left_x + day_count * day_width as i32 + 6 * hour_width as i32,
-                /* y= */ top_y + t_bars_y_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
-                of_size(
-                    /* w= */ 12 * hour_width as u32,
-                    /* h= */ this_t_bar_height),
-            styles.color_black);
-
-        // High temperature
-        imageproc::drawing::draw_text_mut(
-            imgbuf, styles.color_black,
-            /* x = */ (left_x + day_count * day_width as i32 + (8 * hour_width as i32)) as u32,
-            /* y = */ (top_y + precip_bar_max_height + 75) as u32,
-            scale(30.0), &styles.font, &format!("{:.0}", info.max_t));
     }
 
     return Ok(());
@@ -218,7 +216,7 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let left_x: i32 = 400;
     let top_y: i32 = 00;
 
-    draw_daily_forecast(left_x, top_y + 210, imgbuf, styles, weather_display)?;
+    draw_daily_forecast(left_x, top_y + 240, imgbuf, styles, weather_display)?;
 
     let first_entry = weather_display.days.iter().nth(0).ok_or(
         result::make_error("missing first entry"))?;
