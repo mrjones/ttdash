@@ -98,7 +98,12 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
         format!("Outbound: {}", data.upcoming_outbound_trains.iter()
                 .take(3)
                 .filter(|(_, line)| line == "R")
-                .map(|(ts, _)| countdown_summary(now, *ts))
+                .map(|(ts, line)|
+                     if line == "R" {
+                         countdown_summary(now, *ts)
+                     } else {
+                         format!("{} ({})", countdown_summary(now, *ts), line)
+                     })
                 .collect::<Vec<String>>()
                 .join(", "))
     };
@@ -125,9 +130,9 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let precip_bar_max_height = 50;
 
     let t_bars_height = 40;
-    let t_bars_offset = precip_bar_max_height + 30;
+    let t_bars_y_offset = precip_bar_max_height + 30;
 
-    let hour_width: u32 = 1;
+    let hour_width: u32 = 2;
     let day_width: u32 = 24 * hour_width + 5;
 
     let day_labels = vec!["S", "M", "T", "W", "R", "F", "S"];
@@ -136,7 +141,7 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let first_date = first_entry.0;
     let first_info = first_entry.1;
 
-    for (date, info) in &weather_display.days {
+    for (date, info) in weather_display.days.iter().take(4) {
         let day_count = date.num_days_from_ce() - first_date.num_days_from_ce();
         let min_pct = (info.min_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
         let max_pct = (info.max_t - weather_display.overall_min_t) / (weather_display.overall_max_t - weather_display.overall_min_t);
@@ -153,7 +158,7 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
         imageproc::drawing::draw_filled_rect_mut(
             imgbuf, imageproc::rect::Rect::at(
                 /* x= */ left_x + day_count * day_width as i32 + 6 * hour_width as i32,
-                /* y= */ top_y + t_bars_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
+                /* y= */ top_y + t_bars_y_offset + (t_bars_height as f32 * (1.0 - max_pct)) as i32).
                 of_size(
                     /* w= */ 12 * hour_width as u32,
                     /* h= */ this_t_bar_height),
@@ -164,11 +169,6 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
             /* x = */ (left_x + day_count * day_width as i32 + (8 * hour_width as i32)) as u32,
             /* y = */ (top_y + precip_bar_max_height + 75) as u32,
             scale(30.0), &styles.font, &format!("{:.0}", info.max_t));
-        imageproc::drawing::draw_text_mut(
-            imgbuf, styles.color_black,
-            /* x = */ (left_x + day_count * day_width as i32 + (8 * hour_width as i32)) as u32,
-            /* y = */ (top_y + precip_bar_max_height + 100) as u32,
-            scale(30.0), &styles.font, &format!("{:.0}", info.min_t));
 
         for (hour, precip_prob) in &info.precip_by_hour {
             let bar_height = std::cmp::max(1, (precip_bar_max_height as f32 * (*precip_prob / 100.0)) as u32);
@@ -208,7 +208,7 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
         std::cmp::min(5, std::cmp::max(0, (dew_point - 50) / 5));
 
     let dp_box_width = 35;
-    let dp_box_height = 10;
+    let dp_box_height = 15;
     let dp_box_gap = 10;
     for i in 0..5 as i32 {
         let rect = imageproc::rect::Rect::at(left_x + i * (dp_box_width + dp_box_gap), top_y).of_size(dp_box_width as u32, dp_box_height as u32);
