@@ -121,11 +121,8 @@ pub fn countdown_summary(now_ts: i64, arrival_ts: i64) -> String {
     return format!("{}", wait_seconds / 60);
 }
 
-fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
+fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
     use chrono::Datelike;
-
-    let left_x = 400;
-    let top_y = 200;
 
     let precip_bar_max_height = 50;
 
@@ -139,7 +136,6 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let first_entry = weather_display.days.iter().nth(0).ok_or(
         result::make_error("missing first entry"))?;
     let first_date = first_entry.0;
-    let first_info = first_entry.1;
 
     for (date, info) in weather_display.days.iter().take(4) {
         let day_count = date.num_days_from_ce() - first_date.num_days_from_ce();
@@ -182,6 +178,19 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
                 styles.color_black);
         }
     }
+
+    return Ok(());
+}
+
+fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
+    let left_x = 400;
+    let top_y = 200;
+
+    draw_daily_forecast(left_x, top_y, imgbuf, styles, weather_display)?;
+
+    let first_entry = weather_display.days.iter().nth(0).ok_or(
+        result::make_error("missing first entry"))?;
+    let first_info = first_entry.1;
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
