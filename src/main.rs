@@ -161,7 +161,7 @@ fn short_level(level: log::Level) -> String {
 }
 
 fn format_log(
-    w: &mut std::io::Write,
+    w: &mut dyn std::io::Write,
     now: &mut flexi_logger::DeferredNow,
     record: &log::Record,
 ) -> Result<(), std::io::Error> {
