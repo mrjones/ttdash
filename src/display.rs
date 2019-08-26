@@ -125,7 +125,7 @@ fn display_image(dc_pin: &mut OutputPin, busy_pin: &InputPin, spi: &mut Spi, img
 
     for y in 0..imgbuf.height() {
         for x in 0..imgbuf.width() {
-            let color = imgbuf.get_pixel(x as u32, y as u32).to_luma().data[0];
+            let color = imgbuf.get_pixel(x as u32, y as u32).to_luma()[0];
             if x % 2 == 0 {
                 if color < 64 {
                     pixel_in_progress = 0x00;
