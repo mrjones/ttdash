@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Matt Jones <jonesmr@gmail.com>"]
 
 [dependencies]
+bytes = "*"
 chrono = "*"
 chrono-tz = "*"
 flexi_logger = "*"
@@ -15,7 +16,7 @@ log = "*"
 md-5 = "*"
 nix = "*"
 pretty-bytes = "*"
-protobuf = "*"
+prost = "*"
 querystring = "*"
 reqwest = "*"
 rppal = "*"
@@ -24,6 +25,9 @@ serde = "*"
 serde_derive = "*"
 serde_json = "*"
 simple-server = "*"
+
+[build-dependencies]
+prost-build = "*"
 
 [profile.release]
 lto = true

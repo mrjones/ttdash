@@ -1,5 +1,5 @@
 extern crate chrono;
-extern crate protobuf;
+extern crate prost;
 extern crate reqwest;
 
 use drawing;
@@ -34,33 +34,37 @@ pub fn fetch_and_process_data() -> result::TTDashResult<ProcessedData> {
 }
 
 fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
+    use prost::Message;
+
     let url = format!("http://traintrack.nyc/api/station/028").to_string();
     let mut response = reqwest::get(&url)?;
     let mut response_body = vec![];
     use std::io::Read;
     response.read_to_end(&mut response_body)?;
-    let proto = protobuf::parse_from_bytes::<webclient_api::StationStatus>(
-        &response_body)?;
+    let proto = webclient_api::StationStatus::decode(&response_body)?;
     return Ok(proto);
 }
 
 fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<ProcessedData> {
-    let mut arrivals = vec![];
-    let mut outbound_arrivals = vec![];
+    let mut arrivals: Vec<(i64, String)> = vec![];
+    let mut outbound_arrivals: Vec<(i64, String)> = vec![];
     let now = chrono::Utc::now().timestamp();
-    for line in data.get_line() {
-        if line.get_direction() == webclient_api::Direction::UPTOWN {
-            for arrival in line.get_arrivals() {
-                if arrival.get_timestamp() > now {
-                    arrivals.push((arrival.get_timestamp(), line.get_line().to_string()));
+    for line in &data.line {
+        match line.direction() {
+            webclient_api::Direction::Uptown => {
+                for arrival in &line.arrivals {
+                    if arrival.timestamp() > now {
+                        arrivals.push((arrival.timestamp(), line.line().to_string()));
+                    }
                 }
-            }
-        } else if line.get_direction() == webclient_api::Direction::DOWNTOWN {
-            for arrival in line.get_arrivals() {
-                if arrival.get_timestamp() > now {
-                    outbound_arrivals.push((arrival.get_timestamp(), line.get_line().to_string()));
+            },
+            webclient_api::Direction::Downtown => {
+                for arrival in &line.arrivals {
+                    if arrival.timestamp() > now {
+                        outbound_arrivals.push((arrival.timestamp(), line.line().to_string()));
+                    }
                 }
-            }
+            },
         }
     }
 
@@ -70,15 +74,15 @@ fn process_data(data: &webclient_api::StationStatus) -> result::TTDashResult<Pro
         arrivals.sort_by_key(|x| x.0);
         outbound_arrivals.sort_by_key(|x| x.0);
         let first_arrival_ts = arrivals[0].0;
-        let first_arrival_line = arrivals[0].1.to_string();
+        let first_arrival_line = arrivals[0].1.clone();
 
         return Ok(ProcessedData{
             upcoming_trains: arrivals,
             upcoming_outbound_trains: outbound_arrivals,
             big_countdown: Some(drawing::countdown_summary(now, first_arrival_ts)),
             big_countdown_line: Some(first_arrival_line),
-            station_name: data.get_name().to_string(),
-            data_timestamp: data.get_data_timestamp(),
+            station_name: data.name().to_string(),
+            data_timestamp: data.data_timestamp(),
         });
     }
 }

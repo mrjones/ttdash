@@ -10,7 +10,7 @@ extern crate imageproc;
 extern crate md5;
 extern crate nix;
 extern crate pretty_bytes;
-extern crate protobuf;
+extern crate prost;
 extern crate querystring;
 extern crate reqwest;
 extern crate rppal;
@@ -25,8 +25,10 @@ mod result;
 mod subway;
 mod update;
 mod weather;
-mod webclient_api;
 
+pub mod webclient_api {
+    include!(concat!(env!("OUT_DIR"), "/webclient_api.rs"));
+}
 
 struct TTDash<'a> {
     weather_display: Option<weather::WeatherDisplay>,
