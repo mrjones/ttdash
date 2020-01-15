@@ -37,11 +37,11 @@ fn fetch_data() -> result::TTDashResult<webclient_api::StationStatus> {
     use prost::Message;
 
     let url = format!("http://traintrack.nyc/api/station/028").to_string();
-    let mut response = reqwest::get(&url)?;
+    let mut response = reqwest::blocking::get(&url)?;
     let mut response_body = vec![];
     use std::io::Read;
     response.read_to_end(&mut response_body)?;
-    let proto = webclient_api::StationStatus::decode(&response_body)?;
+    let proto = webclient_api::StationStatus::decode(response_body.as_slice())?;
     return Ok(proto);
 }
 

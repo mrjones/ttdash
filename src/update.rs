@@ -59,7 +59,7 @@ fn parse_version(version_str: &str) -> result::TTDashResult<TTDashVersion> {
 }
 
 fn available_target() -> result::TTDashResult<TTDashUpgradeTarget> {
-    let body = reqwest::get(
+    let body = reqwest::blocking::get(
         &format!("http://linode.mrjon.es/ttdash-{}.version", TRACK))?.text()?;
 
     let target_info: TTDashUpgradeTarget = serde_json::from_str(&body)?;
@@ -136,7 +136,7 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
     if !good_binary_exists {
         let mut local_file = std::fs::File::create(&filename)?;
         info!("Downloading {}...", &target.url);
-        reqwest::get(&target.url)?.copy_to(&mut local_file)?;
+        reqwest::blocking::get(&target.url)?.copy_to(&mut local_file)?;
         info!("Download complete.");
     }
 
@@ -155,7 +155,7 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
         .map(|s| std::ffi::CString::new(s.as_str()).expect("cstringing argv")).collect();
 
     info!("Execing new binary.");
-    nix::unistd::execv(&argv0_c, &argv_c).unwrap();
+    nix::unistd::execv(&argv0_c, argv_c.as_slice()).unwrap();
 
     return Ok(());
 }
