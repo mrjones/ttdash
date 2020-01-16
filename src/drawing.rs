@@ -229,7 +229,7 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
         imgbuf, styles.color_black,
         /* x= */ (left_x + 40) as u32, /* y= */ top_y as u32,
         scale(140.0),
-        &styles.font_black, &format!("{}°", weather_display.current_t));
+        &styles.font_black, &format!("{:.0}°", weather_display.current_t));
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,

@@ -30,8 +30,21 @@ struct NwsApiPeriod {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NwsApiProperty {
+    value: Option<f32>,
+    unit_code: String,
+}
+
+#[derive(Serialize, Deserialize)]
 struct NwsApiProperties {
-    periods: Vec<NwsApiPeriod>,
+    periods: Option<Vec<NwsApiPeriod>>,
+
+    temperature: Option<NwsApiProperty>,
+    dewpoint: Option<NwsApiProperty>,
+    wind_direction: Option<NwsApiProperty>,
+    wind_speed: Option<NwsApiProperty>,
+    wind_gust: Option<NwsApiProperty>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -132,12 +145,19 @@ pub fn get_weather_display(now: i64) -> result::TTDashResult<WeatherDisplay> {
     return get_weather_display_ext(now, real_fetch);
 }
 
+fn get_temperature_f(properties: NwsApiProperties) -> Option<f32> {
+    return Some(ctof(properties.temperature?.value?));
+}
+
 fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<WeatherDisplay> {
     use chrono::Timelike;
     use chrono::TimeZone;
 
     let grid_forecast = fetch_grid_forecast(fetch_fn)?;
     let dense_forecast = densify_grid_forecast(&grid_forecast)?;
+
+    let current_observations = fetch_current_observations(fetch_fn)?;
+    let current_t_f: Option<f32> = get_temperature_f(current_observations);
 
     let mut days = std::collections::BTreeMap::new();
 
@@ -149,7 +169,7 @@ fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<
     let mut precip_by_hour = std::collections::BTreeMap::new();
     let min_ts = now - 3600;
 
-    let mut current_t = None;
+    let mut first_forecast_t = None;
 
     for (hour, values) in &dense_forecast.hours {
         let local_time = chrono_tz::US::Eastern.timestamp(hour.timestamp(), 0);
@@ -179,8 +199,8 @@ fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<
             precip_by_hour = std::collections::BTreeMap::new();
         }
 
-        if current_t.is_none() {
-            current_t = Some(values.temperature);
+        if first_forecast_t.is_none() {
+            first_forecast_t = Some(values.temperature);
         }
 
         if min_t.is_none() || values.temperature < min_t.unwrap() {
@@ -201,7 +221,7 @@ fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<
     return Ok(WeatherDisplay{
         overall_min_t: dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No data"))?.1.temperature,
         overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No data"))?.1.temperature,
-        current_t: current_t.ok_or(result::make_error("No data"))?,
+        current_t: current_t_f.or(first_forecast_t).ok_or(result::make_error("No data"))?,
         days: days,
     });
 }
@@ -293,6 +313,14 @@ fn entry_ctof(e: GridForecastEntry) -> GridForecastEntry {
     e2.value = ctof(e.value);
     return e2;
 }
+
+fn fetch_current_observations(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<NwsApiProperties> {
+    let url = format!("https://api.weather.gov/stations/KNYC/observations/latest");
+    let response_body = fetch_fn(&url)?;
+    let forecast: NwsApiForecast = serde_json::from_str(&response_body)?;
+    return Ok(forecast.properties);
+}
+
 
 pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<GridForecast> {
 
