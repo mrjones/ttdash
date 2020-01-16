@@ -281,7 +281,8 @@ fn parse_grid_entry(entry: &NwsApiGridValue) -> result::TTDashResult<GridForecas
 fn real_fetch(url: &str) -> result::TTDashResult<String> {
     use std::io::Read;
 
-    let mut response = reqwest::blocking::get(url)?;
+    let client = reqwest::blocking::Client::new();
+    let mut response = client.get(url).header(reqwest::header::USER_AGENT, "ttdash from http://mrjon.es").send()?;
     let mut response_body = String::new();
     response.read_to_string(&mut response_body)?;
     return Ok(response_body);
