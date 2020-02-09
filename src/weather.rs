@@ -13,9 +13,22 @@ extern crate chrono_tz;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_xml_rs;
 extern crate std;
 
 use result;
+
+#[derive(Serialize, Deserialize)]
+// https://w1.weather.gov/xml/current_obs/KNYC.xml
+struct NwsCurrentObservationPage {
+    current_observation: NwsCurrentObservation
+}
+
+#[derive(Serialize, Deserialize)]
+struct NwsCurrentObservation {
+    temp_f: f32,
+}
+
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +42,7 @@ struct NwsApiPeriod {
     wind_speed: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct NwsApiProperty {
     value: Option<f32>,
@@ -146,6 +159,7 @@ pub fn get_weather_display(now: i64) -> result::TTDashResult<WeatherDisplay> {
 }
 
 fn get_temperature_f(properties: NwsApiProperties) -> Option<f32> {
+    println!("ctf: {:?}", properties.temperature);
     return Some(ctof(properties.temperature?.value?));
 }
 
@@ -156,8 +170,17 @@ fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<
     let grid_forecast = fetch_grid_forecast(fetch_fn)?;
     let dense_forecast = densify_grid_forecast(&grid_forecast)?;
 
+    // Seems to have stopped updating?
+    // $ date && curl -s https://api.weather.gov/stations/KNYC/observations/latest | grep timestamp
+    // Sun Feb  9 19:35:49 UTC 2020
+    //    "timestamp": "2020-02-07T16:25:00+00:00",
+    /*
     let current_observations = fetch_current_observations(fetch_fn)?;
     let current_t_f: Option<f32> = get_temperature_f(current_observations);
+     */
+
+    let current_t_f: Option<f32> = Some(fetch_current_temperature_xml(fetch_fn)?);
+    println!("current_t_f: {:?}", current_t_f);
 
     let mut days = std::collections::BTreeMap::new();
 
@@ -321,6 +344,12 @@ fn fetch_current_observations(fetch_fn: fn(&str) -> result::TTDashResult<String>
     return Ok(forecast.properties);
 }
 
+fn fetch_current_temperature_xml(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<f32> {
+    let url = format!("https://w1.weather.gov/xml/current_obs/KNYC.xml");
+    let response_body = fetch_fn(&url)?;
+    let page: NwsCurrentObservation = serde_xml_rs::from_str(&response_body)?;
+    return Ok(page.temp_f);
+}
 
 pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<GridForecast> {
 

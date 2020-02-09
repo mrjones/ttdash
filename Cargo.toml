@@ -14,7 +14,7 @@ image = "*"
 imageproc = "*"
 log = "*"
 md-5 = "*"
-nix = "0.15.0"
+nix = "0.15.0"  # execv changed from CString to CStr
 pretty-bytes = "*"
 prost = "*"
 querystring = "*"
@@ -24,6 +24,7 @@ rusttype = "*"
 serde = "*"
 serde_derive = "*"
 serde_json = "*"
+serde-xml-rs = "*"
 simple-server = "*"
 
 [build-dependencies]

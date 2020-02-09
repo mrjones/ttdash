@@ -98,7 +98,7 @@ impl<'a> TTDash<'a> {
         if self.weather_display.is_none() || (now.timestamp() - self.forecast_timestamp.timestamp() > 60 * 30) {
             match self.update_weather(&now) {
                 Ok(_) => {},
-                Err(err) => error!("Error: {:?}", err),
+                Err(err) => error!("Error updating weather: {:?}", err),
             }
         }
 

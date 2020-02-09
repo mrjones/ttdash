@@ -3,6 +3,7 @@ extern crate prost;
 extern crate reqwest;
 extern crate rppal;
 extern crate serde_json;
+extern crate serde_xml_rs;
 extern crate std;
 
 pub type TTDashResult<T> = std::result::Result<T, TTDashError>;
@@ -15,6 +16,7 @@ pub enum TTDashError {
     HttpError(reqwest::Error),
     IoError(std::io::Error),
     JsonError(serde_json::Error),
+    XmlError(serde_xml_rs::Error),
     ProstDecodeError(prost::DecodeError),
     SpiError(rppal::spi::Error),
 }
@@ -44,6 +46,9 @@ impl std::fmt::Display for TTDashError {
             TTDashError::JsonError(ref err) => {
                 return write!(f, "JSON Error: {}", err);
             },
+            TTDashError::XmlError(ref err) => {
+                return write!(f, "XML Error: {}", err);
+            },
             TTDashError::ProstDecodeError(ref err) => {
                 return write!(f, "ProstDecodeError: {}", err);
             },
@@ -63,6 +68,7 @@ impl std::error::Error for TTDashError {
             TTDashError::HttpError(_) => "HttpError",
             TTDashError::IoError(_) => "IoError",
             TTDashError::JsonError(_) => "JsonError",
+            TTDashError::XmlError(_) => "XmlError",
             TTDashError::ProstDecodeError(_) => "ProstDecodeError",
             TTDashError::SpiError(_) => "SpiError",
         }
@@ -100,6 +106,12 @@ impl From<std::io::Error> for TTDashError {
 impl From<serde_json::Error> for TTDashError {
     fn from(err: serde_json::Error) -> TTDashError {
         return TTDashError::JsonError(err);
+    }
+}
+
+impl From<serde_xml_rs::Error> for TTDashError {
+    fn from(err: serde_xml_rs::Error) -> TTDashError {
+        return TTDashError::XmlError(err);
     }
 }
 
