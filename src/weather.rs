@@ -16,7 +16,7 @@ extern crate serde_json;
 extern crate serde_xml_rs;
 extern crate std;
 
-use result;
+use crate::result;
 
 #[derive(Serialize, Deserialize)]
 // https://w1.weather.gov/xml/current_obs/KNYC.xml
@@ -75,7 +75,7 @@ struct NwsApiGridValue {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NwsApiGridProperty {
-    source_unit: String,
+    source_unit: Option<String>,
     uom: String,
     values: Vec<NwsApiGridValue>,
 }
@@ -174,10 +174,13 @@ fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<
     // $ date && curl -s https://api.weather.gov/stations/KNYC/observations/latest | grep timestamp
     // Sun Feb  9 19:35:49 UTC 2020
     //    "timestamp": "2020-02-07T16:25:00+00:00",
-    /*
-    let current_observations = fetch_current_observations(fetch_fn)?;
-    let current_t_f: Option<f32> = get_temperature_f(current_observations);
-     */
+    // Jun 21 update:
+    // $ date && curl -s https://api.weather.gov/stations/KNYC/observations/latest | grep timestamp
+    // Sun Jun 21 18:48:38 UTC 2020
+    //    "timestamp": "2020-06-19T15:51:00+00:00",
+    // So still behind, but less behind?
+    //let current_observations = fetch_current_observations(fetch_fn)?;
+    //let current_t_f: Option<f32> = get_temperature_f(current_observations);
 
     let current_t_f: Option<f32> = Some(fetch_current_temperature_xml(fetch_fn)?);
     println!("current_t_f: {:?}", current_t_f);
@@ -272,7 +275,8 @@ fn parse_duration(input: &str) -> result::TTDashResult<chrono::Duration> {
     let mut acc = 0;
 
     #[derive(PartialEq)]
-    enum ParseRegion { DatePart, TimePart };
+    enum ParseRegion { DatePart, TimePart }
+
     let mut parse_region = ParseRegion::DatePart;
 
     for (i, c) in input.chars().skip(required_prefix.len()).enumerate() {

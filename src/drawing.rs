@@ -5,9 +5,9 @@ extern crate imageproc;
 extern crate rusttype;
 extern crate std;
 
-use result;
-use subway;
-use weather;
+use crate::result;
+use crate::subway;
+use crate::weather;
 
 pub struct Styles<'a> {
     pub font: rusttype::Font<'a>,

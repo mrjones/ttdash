@@ -3,7 +3,7 @@ extern crate querystring;
 extern crate simple_server;
 extern crate std;
 
-use update;
+use crate::update;
 
 pub fn run_debug_server(port: &str, local_png: Option<String>) {
     let server = simple_server::Server::new(move |request, mut response| {

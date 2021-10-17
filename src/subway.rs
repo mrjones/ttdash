@@ -2,9 +2,9 @@ extern crate chrono;
 extern crate prost;
 extern crate reqwest;
 
-use drawing;
-use result;
-use webclient_api;
+use crate::drawing;
+use crate::result;
+use crate::webclient_api;
 
 pub struct ProcessedData {
     pub upcoming_trains: Vec<(i64, String)>,

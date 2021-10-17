@@ -9,7 +9,7 @@ extern crate nix;
 extern crate reqwest;
 extern crate std;
 
-use result;
+use crate::result;
 
 pub const VERSION: Option<&'static str> = option_env!("TTDASH_VERSION");
 
@@ -115,9 +115,9 @@ fn md5sum(filename: &str) -> result::TTDashResult<String> {
     debug!("md5sum read done len={}", disk_contents.len());
     let mut hasher = md5::Md5::new();
     debug!("md5sum hasher newed");
-    hasher.input(&disk_contents);
+    hasher.update(&disk_contents);
     debug!("md5sum inputted");
-    let result = hasher.result();
+    let result = hasher.finalize();
     let encoded_result: String = hex::encode(result.as_slice());
     info!("md5sum: {}", encoded_result);
     return Ok(encoded_result);

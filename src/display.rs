@@ -5,7 +5,7 @@ extern crate std;
 use rppal::gpio::{Gpio, Level, InputPin, OutputPin};
 use rppal::spi::{Spi};
 
-use result;
+use crate::result;
 
 const RST_PIN : u8 = 17;
 const DC_PIN : u8 = 25;

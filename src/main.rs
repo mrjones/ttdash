@@ -39,14 +39,14 @@ struct TTDash<'a> {
 
 impl<'a> TTDash<'a> {
     fn new() -> TTDash<'a> {
-        let font = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Regular.ttf") as &[u8]);
-        let font = rusttype::FontCollection::from_bytes(font).unwrap().into_font().unwrap();
+        let font = include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Regular.ttf");
+        let font = rusttype::Font::try_from_bytes(font).unwrap();
 
-        let font_black = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf") as &[u8]);
-        let font_black = rusttype::FontCollection::from_bytes(font_black).unwrap().into_font().unwrap();
+        let font_black = include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf");
+        let font_black = rusttype::Font::try_from_bytes(font_black).unwrap();
 
-        let font_bold = Vec::from(include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf") as &[u8]);
-        let font_bold = rusttype::FontCollection::from_bytes(font_bold).unwrap().into_font().unwrap();
+        let font_bold = include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf");
+        let font_bold = rusttype::Font::try_from_bytes(font_bold).unwrap();
 
         return TTDash {
             weather_display: None,
@@ -179,9 +179,10 @@ fn format_log(
 }
 
 fn main() {
-    flexi_logger::Logger::with_env_or_str("info")
+    flexi_logger::Logger::try_with_env_or_str("info")
+        .unwrap()
         .format(format_log)
-        .log_to_file()
+        .log_to_file(flexi_logger::FileSpec::default())
         .append()
         .duplicate_to_stderr(flexi_logger::Duplicate::Info)
         .rotate(

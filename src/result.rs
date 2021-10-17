@@ -1,4 +1,5 @@
 extern crate chrono;
+extern crate image;
 extern crate prost;
 extern crate reqwest;
 extern crate rppal;
@@ -19,6 +20,7 @@ pub enum TTDashError {
     XmlError(serde_xml_rs::Error),
     ProstDecodeError(prost::DecodeError),
     SpiError(rppal::spi::Error),
+    ImageError(image::ImageError),
 }
 
 pub fn make_error(s: &str) -> TTDashError{
@@ -55,6 +57,9 @@ impl std::fmt::Display for TTDashError {
             TTDashError::SpiError(ref err) => {
                 return write!(f, "SPI Error: {}", err);
             },
+            TTDashError::ImageError(ref err) => {
+                return write!(f, "Image Error: {}", err);
+            },
         }
     }
 }
@@ -71,6 +76,7 @@ impl std::error::Error for TTDashError {
             TTDashError::XmlError(_) => "XmlError",
             TTDashError::ProstDecodeError(_) => "ProstDecodeError",
             TTDashError::SpiError(_) => "SpiError",
+            TTDashError::ImageError(_) => "ImageError",
         }
     }
 
@@ -124,5 +130,11 @@ impl From<prost::DecodeError> for TTDashError {
 impl From<rppal::spi::Error> for TTDashError {
     fn from(err: rppal::spi::Error) -> TTDashError {
         return TTDashError::SpiError(err);
+    }
+}
+
+impl From<image::ImageError> for TTDashError {
+    fn from(err: image::ImageError) -> TTDashError {
+        return TTDashError::ImageError(err);
     }
 }
