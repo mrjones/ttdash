@@ -16,11 +16,13 @@ extern crate reqwest;
 extern crate rppal;
 extern crate rusttype;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate serde_with;
 extern crate simple_server;
 
 mod debug;
 mod display;
 mod drawing;
+mod purpleair;
 mod result;
 mod subway;
 mod update;
@@ -33,6 +35,8 @@ pub mod webclient_api {
 struct TTDash<'a> {
     weather_display: Option<weather::WeatherDisplay>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
+    air_quality: Option<purpleair::AirQuality>,
+    air_quality_timestamp: chrono::DateTime<chrono::Utc>,
     styles: drawing::Styles<'a>,
     last_redraw: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -51,6 +55,8 @@ impl<'a> TTDash<'a> {
         return TTDash {
             weather_display: None,
             forecast_timestamp: chrono::Utc::now(),
+            air_quality: None,
+            air_quality_timestamp: chrono::Utc::now(),
             styles: drawing::Styles{
                 font_black: font_black,
                 font_bold: font_bold,
@@ -64,6 +70,13 @@ impl<'a> TTDash<'a> {
         }
     }
 
+    fn update_air_quality(&mut self, id: &str, key: &str, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
+        self.air_quality = Some(purpleair::get_air_quality(id, key)?);
+        self.air_quality_timestamp = *now;
+
+        return Ok(());
+    }
+
     fn update_weather(&mut self, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
         self.weather_display = Some(weather::get_weather_display(now.timestamp())?);
         self.forecast_timestamp = *now;
@@ -71,7 +84,7 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool) -> result::TTDashResult<Option<subway::ProcessedData>> {
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, purpleair_id: Option<&str>, purpleair_key: Option<&str>) -> result::TTDashResult<Option<subway::ProcessedData>> {
         if auto_update {
             match update::binary_update_available() {
                 Some(target) => {
@@ -101,6 +114,18 @@ impl<'a> TTDash<'a> {
                 Err(err) => error!("Error updating weather: {:?}", err),
             }
         }
+
+        if purpleair_id.is_some() && purpleair_key.is_some() {
+            if self.air_quality.is_none() || (now.timestamp() - self.air_quality_timestamp.timestamp() > 60) {
+                info!("{} {} {}", now.timestamp(), self.air_quality_timestamp.timestamp(), (now.timestamp() - self.air_quality_timestamp.timestamp()));
+                match self.update_air_quality(purpleair_id.unwrap(), purpleair_key.unwrap(), &now) {
+                    Ok(_) => { info!("AQ: {:?}", self.air_quality); },
+                    Err(err) => { error!("Error updating air quality: {:?}", err); },
+                }
+            }
+
+        }
+
 
         let mut needs_redraw = false;
 
@@ -210,6 +235,9 @@ fn main() {
     opts.optopt("p", "debug-port", "Port to run a debug server on.", "PORT");
     opts.optflag("u", "auto-update", "Run the auto-updater.");
 
+    opts.optopt("", "purpleair-id", "ID of a purpleair device (for air quality).", "ID");
+    opts.optopt("", "purpleair-key", "Key of a purpleair device (for air quality).", "KEY");
+
     let matches = opts.parse(&args[1..]).expect("parse opts");
 
     let display = !matches.opt_present("skip-display");
@@ -217,8 +245,10 @@ fn main() {
     let debug_port = matches.opt_str("debug-port");
     let auto_update = matches.opt_present("auto-update");
     let local_png: Option<String> = matches.opt_str("save-image");
+    let purpleair_id = matches.opt_str("purpleair-id");
+    let purpleair_key = matches.opt_str("purpleair-key");
 
-    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}", display, one_shot, debug_port, auto_update, local_png);
+    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}, purpleair-id={:?}, purpleair-key={:?}", display, one_shot, debug_port, auto_update, local_png, purpleair_id, purpleair_key);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -236,7 +266,7 @@ fn main() {
     }
 
     loop {
-        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update) {
+        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, purpleair_id.as_ref().map(String::as_ref), purpleair_key.as_ref().map(String::as_ref)) {
             Err(err) => error!("{}", err),
             Ok(processed_data) => {
                 if let Some(processed_data) = processed_data {
