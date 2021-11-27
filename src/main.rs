@@ -29,6 +29,7 @@ mod subway;
 mod update;
 mod weather;
 
+
 pub mod webclient_api {
     include!(concat!(env!("OUT_DIR"), "/webclient_api.rs"));
 }
@@ -71,8 +72,8 @@ impl<'a> TTDash<'a> {
         }
     }
 
-    fn update_air_quality(&mut self, id: &str, key: &str, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
-        self.air_quality = Some(purpleair::get_air_quality(id, key)?);
+    fn update_air_quality(&mut self, creds: &purpleair::Credentials, now: &chrono::DateTime<chrono::Utc>) -> result::TTDashResult<()> {
+        self.air_quality = Some(purpleair::get_air_quality(creds)?);
         self.air_quality_timestamp = *now;
 
         return Ok(());
@@ -85,7 +86,7 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, purpleair_id: Option<&str>, purpleair_key: Option<&str>) -> result::TTDashResult<Option<subway::ProcessedData>> {
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, purpleair_creds: Option<&purpleair::Credentials>) -> result::TTDashResult<Option<subway::ProcessedData>> {
         if auto_update {
             match update::binary_update_available() {
                 Some(target) => {
@@ -116,9 +117,9 @@ impl<'a> TTDash<'a> {
             }
         }
 
-        if purpleair_id.is_some() && purpleair_key.is_some() {
+        if purpleair_creds.is_some() {
             if self.air_quality.is_none() || (now.timestamp() - self.air_quality_timestamp.timestamp() > 60) {
-                match self.update_air_quality(purpleair_id.unwrap(), purpleair_key.unwrap(), &now) {
+                match self.update_air_quality(purpleair_creds.unwrap(), &now) {
                     Ok(_) => { info!("AQ: {:?}", self.air_quality); },
                     Err(err) => { error!("Error updating air quality: {:?}", err); },
                 }
@@ -158,6 +159,7 @@ impl<'a> TTDash<'a> {
             let imgbuf = drawing::generate_image(
                 &processed_data,
                 self.weather_display.as_ref(),
+                self.air_quality.as_ref(),
                 update::local_version().ok().map(|v| v.to_string()),
                 &self.styles)?;
 
@@ -235,8 +237,9 @@ fn main() {
     opts.optopt("p", "debug-port", "Port to run a debug server on.", "PORT");
     opts.optflag("u", "auto-update", "Run the auto-updater.");
 
-    opts.optopt("", "purpleair-id", "ID of a purpleair device (for air quality).", "ID");
-    opts.optopt("", "purpleair-key", "Key of a purpleair device (for air quality).", "KEY");
+    opts.optopt("", "purpleair-credentials-file", "Name of a file containing JSON {key: xx, id: xxx} value with purpleair credentials.", "FILE");
+
+
 
     let matches = opts.parse(&args[1..]).expect("parse opts");
 
@@ -245,10 +248,12 @@ fn main() {
     let debug_port = matches.opt_str("debug-port");
     let auto_update = matches.opt_present("auto-update");
     let local_png: Option<String> = matches.opt_str("save-image");
-    let purpleair_id = matches.opt_str("purpleair-id");
-    let purpleair_key = matches.opt_str("purpleair-key");
+    let purpleair_creds: Option<purpleair::Credentials> =
+        matches.opt_str("purpleair-credentials-file").map(
+            |file| purpleair::credentials_from_file(file)
+                .expect("while reading purpleair-credentials-file"));
 
-    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}, purpleair-id={:?}, purpleair-key={:?}", display, one_shot, debug_port, auto_update, local_png, purpleair_id, purpleair_key);
+    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}, purpleair-credentials={:?}", display, one_shot, debug_port, auto_update, local_png, purpleair_creds);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -266,7 +271,7 @@ fn main() {
     }
 
     loop {
-        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, purpleair_id.as_ref().map(String::as_ref), purpleair_key.as_ref().map(String::as_ref)) {
+        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, purpleair_creds.as_ref()) {
             Err(err) => error!("{}", err),
             Ok(processed_data) => {
                 if let Some(processed_data) = processed_data {

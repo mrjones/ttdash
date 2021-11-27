@@ -1,8 +1,10 @@
+extern crate anyhow;
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 extern crate serde_with;
 
+use anyhow::Context;
 use crate::result;
 use serde_with::{DisplayFromStr, serde_as};
 
@@ -11,8 +13,24 @@ pub struct AirQuality {
     pub raw_pm25_ugm3: f32,
 }
 
-pub fn get_air_quality(id: &str, key: &str) -> result::TTDashResult<AirQuality> {
-    return get_air_quality_ext(id, key, real_fetch_json_fn);
+#[derive(Debug, Deserialize)]
+pub struct Credentials {
+    pub id: String,
+    pub key: String,
+}
+
+pub fn credentials_from_file<P: AsRef<std::path::Path>>(path: P) -> result::TTDashResult<Credentials> {
+    let debug_path = path.as_ref().to_str().map(|x| x.to_string());
+    let file = std::fs::File::open(path)
+        .with_context(|| format!("Opening purpleair creds from '{:?}'", debug_path))?;
+    let reader = std::io::BufReader::new(file);
+    let creds: Credentials = serde_json::from_reader(reader)
+        .with_context(|| format!("while parsing credentials"))?;
+    return Ok(creds);
+}
+
+pub fn get_air_quality(credentials: &Credentials) -> result::TTDashResult<AirQuality> {
+    return get_air_quality_ext(&credentials.id, &credentials.key, real_fetch_json_fn);
 }
 
 fn get_air_quality_ext(id: &str, key: &str, fetch_json_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<AirQuality> {

@@ -5,6 +5,7 @@ extern crate imageproc;
 extern crate rusttype;
 extern crate std;
 
+use crate::purpleair;
 use crate::result;
 use crate::subway;
 use crate::weather;
@@ -25,6 +26,7 @@ const EPD_HEIGHT: usize = 384;
 
 pub fn generate_image(data: &subway::ProcessedData,
                       weather_display: Option<&weather::WeatherDisplay>,
+                      air_quality: Option<&purpleair::AirQuality>,
                       version: Option<String>,
                       styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
@@ -33,6 +35,10 @@ pub fn generate_image(data: &subway::ProcessedData,
 
     if weather_display.is_some() {
         draw_weather(&mut imgbuf, styles, weather_display.unwrap())?;
+    }
+
+    if air_quality.is_some() {
+        draw_air_quality(&mut imgbuf, styles, air_quality.unwrap())?;
     }
 
     draw_version(&mut imgbuf, styles, version.unwrap_or("UNKNOWN VERSION".to_string()).as_ref());
@@ -260,6 +266,19 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
             imageproc::drawing::draw_hollow_rect_mut(imgbuf, rect, styles.color_black);
         }
     }
+
+    return Ok(());
+}
+
+fn draw_air_quality(imgbuf: &mut image::GrayImage, styles: &Styles, air_quality: &purpleair::AirQuality) -> result::TTDashResult<()> {
+    let left_x: i32 = 250;
+    let top_y: i32 = 0;
+
+    imageproc::drawing::draw_text_mut(
+        imgbuf, styles.color_black,
+        /* x= */ left_x as u32, /* y= */ top_y as u32,
+        scale(40.0),
+        &styles.font_black, &format!("pm={:.1}", air_quality.raw_pm25_ugm3));
 
     return Ok(());
 }
