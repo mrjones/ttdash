@@ -8,6 +8,7 @@
 // 32,34 seems to yield somewhat different data than 33,32.  33,32 seems more
 // accurate for me, maybe that other grid is on the water or something?
 // TODO(mrjones): (Geocode? -> ) LAT/LNG -> URL
+extern crate anyhow;
 extern crate chrono;
 extern crate chrono_tz;
 extern crate reqwest;
@@ -17,6 +18,8 @@ extern crate serde_xml_rs;
 extern crate std;
 
 use crate::result;
+
+use anyhow::Context;
 
 #[derive(Serialize, Deserialize)]
 // https://w1.weather.gov/xml/current_obs/KNYC.xml
@@ -245,9 +248,9 @@ fn get_weather_display_ext(now: i64, fetch_fn: fn(&str) -> result::TTDashResult<
     }
 
     return Ok(WeatherDisplay{
-        overall_min_t: dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No data"))?.1.temperature,
-        overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No data"))?.1.temperature,
-        current_t: current_t_f.or(first_forecast_t).ok_or(result::make_error("No data"))?,
+        overall_min_t: dense_forecast.hours.iter().min_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No overall_min_t data"))?.1.temperature,
+        overall_max_t: dense_forecast.hours.iter().max_by_key(|(_,e)| e.temperature as u32).ok_or(result::make_error("No overall_max_t data"))?.1.temperature,
+        current_t: current_t_f.or(first_forecast_t).ok_or(result::make_error("No current_t data"))?,
         days: days,
     });
 }
@@ -329,7 +332,13 @@ fn real_fetch(url: &str) -> result::TTDashResult<String> {
     use std::io::Read;
 
     let client = reqwest::blocking::Client::new();
-    let mut response = client.get(url).header(reqwest::header::USER_AGENT, "ttdash from http://mrjon.es").send()?;
+    // "Authentication" section from https://www.weather.gov/documentation/services-web-api
+    let mut response = client.get(url)
+        .header(reqwest::header::USER_AGENT, "(mrjon.es, jonesmr@gmail.com)")
+        // https://www.weather.gov/documentation/services-web-api "Formats"
+        .header(reqwest::header::ACCEPT, "application/geo+json")
+        .send()
+        .with_context(|| format!("while fetching url: {}", url))?;
     let mut response_body = String::new();
     response.read_to_string(&mut response_body)?;
     return Ok(response_body);
@@ -358,8 +367,10 @@ fn fetch_current_temperature_xml(fetch_fn: fn(&str) -> result::TTDashResult<Stri
 pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<GridForecast> {
 
     let url = format!("https://api.weather.gov/gridpoints/OKX/33,32");
-    let response_body = fetch_fn(&url)?;
-    let forecast: NwsApiGridForecast = serde_json::from_str(&response_body)?;
+    let response_body = fetch_fn(&url).context("while fetching data")?;
+    let forecast: NwsApiGridForecast =
+        serde_json::from_str(&response_body)
+        .with_context(|| format!("while parsing json: \"{}\"", response_body))?;
 
     let precip_probs : result::TTDashResult<Vec<GridForecastEntry>> =
         forecast.properties.probability_of_precipitation.values.iter()
@@ -376,9 +387,9 @@ pub fn fetch_grid_forecast(fetch_fn: fn(&str) -> result::TTDashResult<String>) -
         .map(|e_res| e_res.map(entry_ctof))
         .collect();
     return Ok(GridForecast{
-        precip_prob: precip_probs?,
-        temp: temps?,
-        dew_point: dew_points?,
+        precip_prob: precip_probs.context("precip_prob")?,
+        temp: temps.context("temp")?,
+        dew_point: dew_points.context("dew_point")?,
     });
 }
 

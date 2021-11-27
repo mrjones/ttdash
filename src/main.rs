@@ -1,4 +1,5 @@
 // sudo apt-get install fonts-roboto libssl-dev
+#[macro_use] extern crate anyhow;
 extern crate chrono;
 extern crate chrono_tz;
 extern crate flexi_logger;
@@ -117,7 +118,6 @@ impl<'a> TTDash<'a> {
 
         if purpleair_id.is_some() && purpleair_key.is_some() {
             if self.air_quality.is_none() || (now.timestamp() - self.air_quality_timestamp.timestamp() > 60) {
-                info!("{} {} {}", now.timestamp(), self.air_quality_timestamp.timestamp(), (now.timestamp() - self.air_quality_timestamp.timestamp()));
                 match self.update_air_quality(purpleair_id.unwrap(), purpleair_key.unwrap(), &now) {
                     Ok(_) => { info!("AQ: {:?}", self.air_quality); },
                     Err(err) => { error!("Error updating air quality: {:?}", err); },
@@ -131,14 +131,14 @@ impl<'a> TTDash<'a> {
 
         let data_went_back_in_time = processed_data.data_timestamp < prev_processed_data.data_timestamp;
         if data_went_back_in_time {
-            warn!("Ignoring data ({}) that's older than what's already displayed ({}).",
+            debug!("Ignoring data ({}) that's older than what's already displayed ({}).",
                   processed_data.data_timestamp,
                   prev_processed_data.data_timestamp);
         }
 
         if prev_processed_data.big_countdown != processed_data.big_countdown &&
             !data_went_back_in_time {
-            info!("Updating bignum {:?} -> {:?}",
+            debug!("Updating bignum {:?} -> {:?}",
                      prev_processed_data.big_countdown,
                      processed_data.big_countdown);
             needs_redraw = true;
@@ -207,7 +207,7 @@ fn main() {
     flexi_logger::Logger::try_with_env_or_str("info")
         .unwrap()
         .format(format_log)
-        .log_to_file(flexi_logger::FileSpec::default())
+        .log_to_file(flexi_logger::FileSpec::default().use_timestamp(true))
         .append()
         .duplicate_to_stderr(flexi_logger::Duplicate::Info)
         .rotate(
