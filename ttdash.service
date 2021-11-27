@@ -4,7 +4,7 @@ Description=TrainTrack Dashboard
 
 [Service]
 Type=simple
-ExecStart=/home/pi/ttdash --auto-update --debug-port=4242 --purpleair-credentials-file purpleair-credentials.json
+ExecStart=/home/pi/ttdash --auto-update --debug-port=4242 --purpleair-credentials-file /home/pi/src/ttdash/purpleair-credentials.json
 
 [Install]
 WantedBy=multi-user.target
