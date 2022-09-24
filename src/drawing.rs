@@ -91,7 +91,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
         imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 284, y, scale(50.0), &styles.font, &arrival_formatted);
 
         if line != "R" {
-            draw_subway_line_emblem(imgbuf, line, 375, y + 25, 12, styles);
+            draw_subway_line_emblem(imgbuf, line, 375, (y + 25) as u32, 12, styles);
         }
 
         y = y + y_step;
@@ -178,15 +178,15 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
         // Day Label (SMTWRFS)
         imageproc::drawing::draw_text_mut(
             imgbuf, styles.color_black,
-            /* x= */ (left_x + left_offset) as u32 + day_count as u32 * day_width as u32 + (8 * hour_width),
-            /* y= */ (top_y) as u32,
+            /* x= */ (left_x + left_offset) as i32 + day_count as i32 * day_width as i32 + (8 * hour_width) as i32,
+            /* y= */ (top_y) as i32,
             scale(40.0), &styles.font_bold, &day_label);
 
         // High temperature
         imageproc::drawing::draw_text_mut(
             imgbuf, styles.color_black,
-            /* x = */ (left_x + left_offset + day_count * day_width as i32 + (4 * hour_width as i32)) as u32,
-            /* y = */ (top_y + 30) as u32,
+            /* x = */ (left_x + left_offset + day_count * day_width as i32 + (4 * hour_width as i32)) as i32,
+            /* y = */ (top_y + 30) as i32,
             scale(45.0), &styles.font, &format!("{:.0}", info.max_t));
 
         // Precip bars
@@ -233,14 +233,14 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
-        /* x= */ (left_x + 40) as u32, /* y= */ top_y as u32,
+        /* x= */ (left_x + 40) as i32, /* y= */ top_y as i32,
         scale(140.0),
         &styles.font_black, &format!("{:.0}°", weather_display.current_t));
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
-        /* x= */ left_x as u32,
-        /* y= */ (top_y + 110) as u32,
+        /* x= */ left_x as i32,
+        /* y= */ (top_y + 110) as i32,
         scale(80.0), &styles.font_bold,
         &format!("{}° / {}°", first_info.min_t, first_info.max_t));
 
@@ -276,7 +276,7 @@ fn draw_air_quality(imgbuf: &mut image::GrayImage, styles: &Styles, air_quality:
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
-        /* x= */ left_x as u32, /* y= */ top_y as u32,
+        /* x= */ left_x as i32, /* y= */ top_y as i32,
         scale(40.0),
         &styles.font_black, &format!("pm={:.1}", air_quality.raw_pm25_ugm3));
 
@@ -290,5 +290,5 @@ fn scale(s: f32) -> rusttype::Scale {
 fn draw_subway_line_emblem(imgbuf: &mut image::GrayImage, letter: &str, x: u32, y: u32, radius: u32, styles: &Styles) {
     imageproc::drawing::draw_filled_circle_mut(imgbuf, (x as i32, y as i32), (radius + 2)as i32, styles.color_white);
     imageproc::drawing::draw_filled_circle_mut(imgbuf, (x as i32, y as i32), radius as i32, styles.color_black);
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_white, x - (radius / 2) + 2, y - radius, scale((radius * 2) as f32), &styles.font_bold, letter);
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_white, (x - (radius / 2) + 2) as i32, (y - radius) as i32, scale((radius * 2) as f32), &styles.font_bold, letter);
 }

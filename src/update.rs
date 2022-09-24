@@ -129,7 +129,7 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
                            target.version.major, target.version.minor);
 
     let good_binary_exists =  match md5sum(&filename) {
-        Ok(sum) => (sum == target.md5sum),
+        Ok(sum) => sum == target.md5sum,
         _ => false,
     };
 

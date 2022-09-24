@@ -29,6 +29,7 @@ serde_json = "*"
 serde_with = "*"
 serde-xml-rs = "*"
 simple-server = "*"
+time = { version = "*", features = [ "macros", "formatting" ] }
 
 [build-dependencies]
 prost-build = "*"

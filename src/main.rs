@@ -19,6 +19,7 @@ extern crate rusttype;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_with;
 extern crate simple_server;
+#[macro_use] extern crate time;
 
 mod debug;
 mod display;
@@ -198,7 +199,9 @@ fn format_log(
         w,
         "[{}{} {}:{:<4}] {}",
         short_level(record.level()),
-        now.now().format("%Y%m%d %H:%M:%S%.6f"),
+        now.now().format(time::macros::format_description!(
+            "[year][month][day] [hour]:[minute]:[second].[subsecond digits:3]"))
+            .unwrap_or("<unknown timestamp>".to_string()),
         record.file().unwrap_or("<unnamed>"),
         record.line().unwrap_or(0),
         &record.args()
