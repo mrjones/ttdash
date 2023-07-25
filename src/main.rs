@@ -18,8 +18,8 @@ extern crate rppal;
 extern crate rusttype;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_with;
-extern crate simple_server;
 #[macro_use] extern crate time;
+extern crate tiny_http;
 
 mod debug;
 mod display;
@@ -46,13 +46,15 @@ struct TTDash<'a> {
 
 impl<'a> TTDash<'a> {
     fn new() -> TTDash<'a> {
-        let font = include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Regular.ttf");
+        // ln
+
+        let font = include_bytes!("/usr/share/fonts/truetype/roboto/unhinted/RobotoCondensed-Regular.ttf");
         let font = rusttype::Font::try_from_bytes(font).unwrap();
 
-        let font_black = include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf");
+        let font_black = include_bytes!("/usr/share/fonts/truetype/roboto/unhinted/RobotoCondensed-Bold.ttf");
         let font_black = rusttype::Font::try_from_bytes(font_black).unwrap();
 
-        let font_bold = include_bytes!("/usr/share/fonts/truetype/roboto/hinted/RobotoCondensed-Bold.ttf");
+        let font_bold = include_bytes!("/usr/share/fonts/truetype/roboto/unhinted/RobotoCondensed-Bold.ttf");
         let font_bold = rusttype::Font::try_from_bytes(font_bold).unwrap();
 
         return TTDash {
@@ -199,9 +201,7 @@ fn format_log(
         w,
         "[{}{} {}:{:<4}] {}",
         short_level(record.level()),
-        now.now().format(time::macros::format_description!(
-            "[year][month][day] [hour]:[minute]:[second].[subsecond digits:3]"))
-            .unwrap_or("<unknown timestamp>".to_string()),
+        now.now().format("%Y%m%d %H:%M:%S.%3f"),
         record.file().unwrap_or("<unnamed>"),
         record.line().unwrap_or(0),
         &record.args()

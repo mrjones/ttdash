@@ -28,8 +28,8 @@ serde_derive = "*"
 serde_json = "*"
 serde_with = "*"
 serde-xml-rs = "*"
-simple-server = "*"
 time = { version = "*", features = [ "macros", "formatting" ] }
+tiny_http = "*"
 
 [build-dependencies]
 prost-build = "*"
