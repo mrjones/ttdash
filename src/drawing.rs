@@ -56,10 +56,10 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
 
     imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);
 
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 0, scale(50.0), &styles.font_bold, &data.station_name);
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 40, scale(40.0), &styles.font, "Manhattan");
+//    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 0, scale(50.0), &styles.font_bold, &data.station_name);
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 0, scale(40.0), &styles.font, "Manhattan");
 
-    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 85.0), (EPD_HEIGHT as f32 - 10.0, 85.0), styles.color_black);
+    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 45.0), (EPD_HEIGHT as f32 - 10.0, 45.0), styles.color_black);
 
     use chrono::TimeZone;
 
@@ -72,17 +72,17 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
             } else {
                 x = 10;
             }
-            imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, x, 55, scale(250.0), &styles.font_black, big_text);
+            imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, x, 15, scale(250.0), &styles.font_black, big_text);
             if big_line != "R" {
-                draw_subway_line_emblem(imgbuf, &big_line, 30, 115, 20, styles);
+                draw_subway_line_emblem(imgbuf, &big_line, 30, 75, 20, styles);
             }
         },
         _ => {},
     }
 
-    let mut y = 90;
+    let mut y = 50;
     let y_step = 40;
-    for (ref ts, ref line) in data.upcoming_trains.iter().take(5) {
+    for (ref ts, ref line) in data.upcoming_trains.iter().take(4) {
         let countdown = countdown_summary(now, *ts);
         let arrival = chrono_tz::US::Eastern.timestamp(*ts, 0);
         let arrival_formatted = arrival.format("%-I:%M").to_string();
@@ -98,15 +98,29 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
     }
 
 
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 290, scale(40.0), &styles.font, "Bay Ridge");
-    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 335.0), (EPD_HEIGHT as f32 - 10.0, 335.0), styles.color_black);
+    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 230.0), (EPD_HEIGHT as f32 - 10.0, 230.0), styles.color_black);
+
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 240, scale(50.0), &styles.font, "BAY: ");
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, 290, scale(50.0), &styles.font, "B63: ");
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, 340, scale(50.0), &styles.font, "B63: ");
+
+    imageproc::drawing::draw_polygon_mut(imgbuf, &[
+        imageproc::point::Point::new(20, 302),
+        imageproc::point::Point::new(28, 322),
+        imageproc::point::Point::new(12, 322),
+    ], styles.color_black);
+    imageproc::drawing::draw_polygon_mut(imgbuf, &[
+        imageproc::point::Point::new(20, 376),
+        imageproc::point::Point::new(28, 356),
+        imageproc::point::Point::new(12, 356),
+    ], styles.color_black);
 
     let outbound_text: String = if data.upcoming_outbound_trains.is_empty() {
-        "NO BAY RIDGE TRAINS".to_string()
+        "NO TRAINS".to_string()
     } else {
         data.upcoming_outbound_trains.iter()
-                .take(5)
-                .filter(|(_, line)| line == "R")
+                .take(4)
+//                .filter(|(_, line)| line == "R")
                 .map(|(ts, line)|
                      if line == "R" {
                          countdown_summary(now, *ts)
@@ -117,7 +131,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
                 .join(", ")
     };
 
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 340, scale(40.0), &styles.font_bold, &outbound_text);
+    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 100, 240, scale(50.0), &styles.font_bold, &outbound_text);
 
 }
 
