@@ -103,8 +103,12 @@ fn main_page(request: tiny_http::Request, has_local_png: bool)  {
     }
 
     body.push_str("<div><h2>Log files</h2><ul>");
-    for entry in std::fs::read_dir("./").expect("fs.read_dir") {
-        let entry = entry.expect("entry in main_page");
+    let mut dirents: Vec<std::fs::DirEntry> = std::fs::read_dir("./")
+        .expect("fs.read_dir")
+        .map(|de| de.expect("fd.read_dir entry"))
+        .collect();
+    dirents.sort_by_key(|de| std::cmp::Reverse(de.path()));
+    for entry in dirents {
         if entry.path().to_string_lossy().ends_with(".log") {
             let filename = entry.path().file_name().unwrap().to_str().unwrap().to_string();
             body.push_str(&format!("<li><a href='/dumplog?log={}'>{}</a> [{}]</li>", filename, filename, pretty_bytes::converter::convert(entry.metadata().expect("query metadata").len() as f64)));
