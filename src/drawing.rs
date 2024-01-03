@@ -145,7 +145,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
                     imageproc::point::Point::new(28, section_y + 36),
                     imageproc::point::Point::new(12, section_y + 36),
                 ], styles.color_black);
-                let uptown_text = bus_time_data.downtown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
+                let uptown_text = bus_time_data.uptown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
                 imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 120, section_y, scale(50.0), &styles.font_bold, &uptown_text);
             }
 
@@ -158,7 +158,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
                     imageproc::point::Point::new(12, section_y + 12),
                 ], styles.color_black);
                 imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(50.0), &styles.font, "B63: ");
-                let downtown_text = bus_time_data.uptown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
+                let downtown_text = bus_time_data.downtown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
                 imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 120, section_y, scale(50.0), &styles.font_bold, &downtown_text);
             }
         }
