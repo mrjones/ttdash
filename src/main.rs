@@ -36,11 +36,13 @@ pub mod webclient_api {
     include!(concat!(env!("OUT_DIR"), "/webclient_api.rs"));
 }
 
+
 struct TTDash<'a> {
     weather_display: Option<weather::WeatherDisplay>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
     air_quality: Option<purpleair::AirQuality>,
     air_quality_timestamp: chrono::DateTime<chrono::Utc>,
+    bus_time_data: Option<bustime::BusTimeDisplayData>,
     styles: drawing::Styles<'a>,
     last_redraw: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -63,6 +65,7 @@ impl<'a> TTDash<'a> {
             forecast_timestamp: chrono::Utc::now(),
             air_quality: None,
             air_quality_timestamp: chrono::Utc::now(),
+            bus_time_data: None,
             styles: drawing::Styles{
                 font_black: font_black,
                 font_bold: font_bold,
@@ -133,7 +136,7 @@ impl<'a> TTDash<'a> {
 
         if mta_bustime_creds.is_some() {
             let bustimes = bustime::get_garfield_bus_arrivals(mta_bustime_creds.unwrap().as_ref());
-            info!("FINAL BUSTIMES: {:?}", bustimes);
+            debug!("FINAL BUSTIMES: {:?}", bustimes);
 
             match bustimes {
                 Ok(bustimes) => {
@@ -146,8 +149,14 @@ impl<'a> TTDash<'a> {
 
                     let uptown_waits: Vec<i64> = bustimes.uptown_timestamps.iter().map(ts_to_wait_minutes).collect();
                     let downtown_waits: Vec<i64> = bustimes.downtown_timestamps.iter().map(ts_to_wait_minutes).collect();
-                    info!("UPTOWN WAITS: {:?}", uptown_waits);
-                    info!("DOWNTOWN WAITS: {:?}", downtown_waits);
+                    debug!("UPTOWN WAITS: {:?}", uptown_waits);
+                    debug!("DOWNTOWN WAITS: {:?}", downtown_waits);
+
+                    self.bus_time_data = Some(bustime::BusTimeDisplayData{
+                        uptown_waits,
+                        downtown_waits,
+                        timestamp: time::OffsetDateTime::now_utc(),
+                    });
                 },
                 Err(err) => error!("Error getting bustimes: {}", err),
             }
@@ -185,6 +194,7 @@ impl<'a> TTDash<'a> {
                 &processed_data,
                 self.weather_display.as_ref(),
                 self.air_quality.as_ref(),
+                self.bus_time_data.as_ref(),
                 update::local_version().ok().map(|v| v.to_string()),
                 &self.styles)?;
 

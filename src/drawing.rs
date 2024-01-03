@@ -5,6 +5,7 @@ extern crate imageproc;
 extern crate rusttype;
 extern crate std;
 
+use crate::bustime;
 use crate::purpleair;
 use crate::result;
 use crate::subway;
@@ -27,11 +28,12 @@ const EPD_HEIGHT: usize = 384;
 pub fn generate_image(data: &subway::ProcessedData,
                       weather_display: Option<&weather::WeatherDisplay>,
                       air_quality: Option<&purpleair::AirQuality>,
+                      bus_time: Option<&bustime::BusTimeDisplayData>,
                       version: Option<String>,
                       styles: &Styles) -> result::TTDashResult<image::GrayImage> {
     let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
 
-    draw_subway_arrivals(&mut imgbuf, styles, data);
+    draw_subway_arrivals(&mut imgbuf, styles, data, bus_time);
 
     if weather_display.is_some() {
         draw_weather(&mut imgbuf, styles, weather_display.unwrap())?;
@@ -51,7 +53,7 @@ fn draw_version(imgbuf: &mut image::GrayImage, styles: &Styles, version: &str) {
 }
 
 
-fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &subway::ProcessedData) {
+fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &subway::ProcessedData, bus_time_data: Option<&bustime::BusTimeDisplayData>) {
     let now = chrono::Utc::now().timestamp();
 
     imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);
@@ -100,27 +102,21 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
 
     imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 230.0), (EPD_HEIGHT as f32 - 10.0, 230.0), styles.color_black);
 
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 240, scale(50.0), &styles.font, "BAY: ");
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, 290, scale(50.0), &styles.font, "B63: ");
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, 340, scale(50.0), &styles.font, "B63: ");
+    {
+        let section_y = 240;
+        imageproc::drawing::draw_polygon_mut(imgbuf, &[
+            imageproc::point::Point::new(20, section_y + 32),
+            imageproc::point::Point::new(28, section_y + 12),
+            imageproc::point::Point::new(12, section_y + 12),
+        ], styles.color_black);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(50.0), &styles.font, "R: ");
 
-    imageproc::drawing::draw_polygon_mut(imgbuf, &[
-        imageproc::point::Point::new(20, 302),
-        imageproc::point::Point::new(28, 322),
-        imageproc::point::Point::new(12, 322),
-    ], styles.color_black);
-    imageproc::drawing::draw_polygon_mut(imgbuf, &[
-        imageproc::point::Point::new(20, 376),
-        imageproc::point::Point::new(28, 356),
-        imageproc::point::Point::new(12, 356),
-    ], styles.color_black);
-
-    let outbound_text: String = if data.upcoming_outbound_trains.is_empty() {
-        "NO TRAINS".to_string()
-    } else {
-        data.upcoming_outbound_trains.iter()
+        let outbound_text: String = if data.upcoming_outbound_trains.is_empty() {
+            "NO TRAINS".to_string()
+        } else {
+            data.upcoming_outbound_trains.iter()
                 .take(4)
-//                .filter(|(_, line)| line == "R")
+            //                .filter(|(_, line)| line == "R")
                 .map(|(ts, line)|
                      if line == "R" {
                          countdown_summary(now, *ts)
@@ -129,10 +125,44 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
                      })
                 .collect::<Vec<String>>()
                 .join(", ")
-    };
+        };
 
-    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 100, 240, scale(50.0), &styles.font_bold, &outbound_text);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 100, section_y, scale(50.0), &styles.font_bold, &outbound_text);
+    }
 
+
+    // Top:    [290, 340), triangle at 302 -> 322
+    // Bottom: [340, 390), triangle at 356 -> 376
+    match bus_time_data {
+        None => {},
+        Some(bus_time_data) => {
+            {
+                // Uptown B63
+                let section_y = 290;
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(50.0), &styles.font, "B63: ");
+                imageproc::drawing::draw_polygon_mut(imgbuf, &[
+                    imageproc::point::Point::new(20, section_y + 16),
+                    imageproc::point::Point::new(28, section_y + 36),
+                    imageproc::point::Point::new(12, section_y + 36),
+                ], styles.color_black);
+                let uptown_text = bus_time_data.downtown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 120, section_y, scale(50.0), &styles.font_bold, &uptown_text);
+            }
+
+            {
+                // Downtown B63
+                let section_y = 340;
+                imageproc::drawing::draw_polygon_mut(imgbuf, &[
+                    imageproc::point::Point::new(20, section_y + 32),
+                    imageproc::point::Point::new(28, section_y + 12),
+                    imageproc::point::Point::new(12, section_y + 12),
+                ], styles.color_black);
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(50.0), &styles.font, "B63: ");
+                let downtown_text = bus_time_data.uptown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 120, section_y, scale(50.0), &styles.font_bold, &downtown_text);
+            }
+        }
+    }
 }
 
 pub fn countdown_summary(now_ts: i64, arrival_ts: i64) -> String {

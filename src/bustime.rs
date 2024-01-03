@@ -4,6 +4,12 @@ extern crate serde_json;
 
 use crate::result;
 
+pub struct BusTimeDisplayData {
+    pub uptown_waits: Vec<i64>,
+    pub downtown_waits: Vec<i64>,
+    pub timestamp: time::OffsetDateTime,
+}
+
 #[derive(Debug)]
 pub struct GarfieldBusArrivals {
     pub uptown_timestamps: Vec<time::OffsetDateTime>,
