@@ -104,7 +104,7 @@ mod tests {
             return Ok(std::fs::read_to_string("testdata/purpleair.json").expect("error reading purpleair.json"));
         };
 
-        let aq = super::get_air_quality_ext(1, "key", fake_fetch_fn).expect("Get air quality failed");
+        let aq = super::get_air_quality_ext("1", "key", fake_fetch_fn).expect("Get air quality failed");
 
         assert_eq!(4.66, aq.raw_pm25_ugm3);
     }

@@ -1,2 +1,5 @@
 /target
 **/*.rs.bk
+mta-bustime.creds
+purpleair-credentials.json
+*.log

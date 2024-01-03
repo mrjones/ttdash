@@ -21,6 +21,7 @@ extern crate rusttype;
 #[macro_use] extern crate time;
 extern crate tiny_http;
 
+mod bustime;
 mod debug;
 mod display;
 mod drawing;
@@ -89,7 +90,7 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, purpleair_creds: Option<&purpleair::Credentials>) -> result::TTDashResult<Option<subway::ProcessedData>> {
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, purpleair_creds: Option<&purpleair::Credentials>, mta_bustime_creds: Option<&String>) -> result::TTDashResult<Option<subway::ProcessedData>> {
         if auto_update {
             match update::binary_update_available() {
                 Some(target) => {
@@ -130,6 +131,27 @@ impl<'a> TTDash<'a> {
 
         }
 
+        if mta_bustime_creds.is_some() {
+            let bustimes = bustime::get_garfield_bus_arrivals(mta_bustime_creds.unwrap().as_ref());
+            info!("FINAL BUSTIMES: {:?}", bustimes);
+
+            match bustimes {
+                Ok(bustimes) => {
+                    let now = time::OffsetDateTime::now_utc();
+
+                    let ts_to_wait_minutes = |ts: &time::OffsetDateTime| {
+                        let delta = ts.clone() - now;
+                        return delta.whole_minutes();
+                    };
+
+                    let uptown_waits: Vec<i64> = bustimes.uptown_timestamps.iter().map(ts_to_wait_minutes).collect();
+                    let downtown_waits: Vec<i64> = bustimes.downtown_timestamps.iter().map(ts_to_wait_minutes).collect();
+                    info!("UPTOWN WAITS: {:?}", uptown_waits);
+                    info!("DOWNTOWN WAITS: {:?}", downtown_waits);
+                },
+                Err(err) => error!("Error getting bustimes: {}", err),
+            }
+        }
 
         let mut needs_redraw = false;
 
@@ -242,7 +264,7 @@ fn main() {
 
     opts.optopt("", "purpleair-credentials-file", "Name of a file containing JSON {key: xx, id: xxx} value with purpleair credentials.", "FILE");
 
-
+    opts.optopt("", "mta-bustime-credentials-file", "Name of a file containing the MTA bustime API key", "FILE");
 
     let matches = opts.parse(&args[1..]).expect("parse opts");
 
@@ -255,8 +277,12 @@ fn main() {
         matches.opt_str("purpleair-credentials-file").map(
             |file| purpleair::credentials_from_file(file)
                 .expect("while reading purpleair-credentials-file"));
+    let mta_bustime_creds: Option<String> =
+        matches.opt_str("mta-bustime-credentials-file").map(
+            |file| std::fs::read_to_string(file)
+                .expect("while reading purpleair-credentials-file"));
 
-    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}, purpleair-credentials={:?}", display, one_shot, debug_port, auto_update, local_png, purpleair_creds);
+    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}, purpleair-credentials={:?} mta-bustime-credentials={:?}", display, one_shot, debug_port, auto_update, local_png, purpleair_creds, mta_bustime_creds);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -274,7 +300,7 @@ fn main() {
     }
 
     loop {
-        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, purpleair_creds.as_ref()) {
+        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, purpleair_creds.as_ref(), mta_bustime_creds.as_ref()) {
             Err(err) => error!("{}", err),
             Ok(processed_data) => {
                 if let Some(processed_data) = processed_data {

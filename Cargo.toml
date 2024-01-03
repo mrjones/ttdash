@@ -28,7 +28,7 @@ serde_derive = "*"
 serde_json = "*"
 serde_with = "*"
 serde-xml-rs = "*"
-time = { version = "*", features = [ "macros", "formatting" ] }
+time = { version = "*", features = [ "macros", "formatting", "serde", "parsing" ] }
 tiny_http = "*"
 
 [build-dependencies]
