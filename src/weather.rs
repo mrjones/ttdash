@@ -22,7 +22,7 @@ use crate::result;
 use anyhow::Context;
 
 #[derive(Serialize, Deserialize)]
-// https://w1.weather.gov/xml/current_obs/KNYC.xml
+// https://forecast.weather.gov/xml/current_obs/KNYC.xml
 struct NwsCurrentObservationPage {
     current_observation: NwsCurrentObservation
 }
@@ -358,7 +358,7 @@ fn fetch_current_observations(fetch_fn: fn(&str) -> result::TTDashResult<String>
 }
 
 fn fetch_current_temperature_xml(fetch_fn: fn(&str) -> result::TTDashResult<String>) -> result::TTDashResult<f32> {
-    let url = format!("https://w1.weather.gov/xml/current_obs/KNYC.xml");
+    let url = format!("https://forecast.weather.gov/xml/current_obs/KNYC.xml");
     let response_body = fetch_fn(&url)?;
     let page: NwsCurrentObservation = serde_xml_rs::from_str(&response_body)?;
     return Ok(page.temp_f);

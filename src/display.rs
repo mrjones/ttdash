@@ -1,6 +1,7 @@
 extern crate image;
 extern crate rppal;
 extern crate std;
+extern crate time;
 
 use rppal::gpio::{Gpio, Level, InputPin, OutputPin};
 use rppal::spi::{Spi};
@@ -57,9 +58,14 @@ fn send_data(dc_pin: &mut OutputPin, spi: &mut Spi, data: u8) {
     assert_eq!(bytes, 1);
 }
 
-fn wait_until_idle(busy_pin: &InputPin) {
+fn wait_until_idle_with_timeout(busy_pin: &InputPin, timeout: time::Duration) {
+    let deadline = time::Instant::now() + timeout;
     loop {
         if busy_pin.read() == Level::Low {
+            return;
+        }
+        if time::Instant::now() > deadline {
+            warn!("wait_until_idle timeout ({}) expired.", timeout);
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
@@ -88,7 +94,7 @@ fn init_display(gpio: &mut Gpio, spi: &mut Spi, dc_pin: &mut OutputPin, busy_pin
     send_data(dc_pin, spi, 0x28);
 
     send_command(dc_pin, spi, POWER_ON);
-    wait_until_idle(&busy_pin);
+    wait_until_idle_with_timeout(&busy_pin, time::Duration::minutes(3));
 
     send_command(dc_pin, spi, PLL_CONTROL);
     send_data(dc_pin, spi, 0x3c);
@@ -154,5 +160,5 @@ fn display_image(dc_pin: &mut OutputPin, busy_pin: &InputPin, spi: &mut Spi, img
 
     send_command(dc_pin, spi, DISPLAY_REFRESH);
     std::thread::sleep(std::time::Duration::from_millis(100));
-    wait_until_idle(&busy_pin);
+    wait_until_idle_with_timeout(&busy_pin, time::Duration::minutes(3));
 }
