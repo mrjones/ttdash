@@ -93,7 +93,7 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, update_track: &str, purpleair_creds: Option<&purpleair::Credentials>, mta_bustime_creds: Option<&String>) -> result::TTDashResult<Option<subway::ProcessedData>> {
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, update_track: &str, panel_version: display::PanelVersion, purpleair_creds: Option<&purpleair::Credentials>, mta_bustime_creds: Option<&String>) -> result::TTDashResult<Option<subway::ProcessedData>> {
         if auto_update {
             match update::binary_update_available(update_track) {
                 Some(target) => {
@@ -196,14 +196,16 @@ impl<'a> TTDash<'a> {
                 self.air_quality.as_ref(),
                 self.bus_time_data.as_ref(),
                 update::local_version().ok().map(|v| v.to_string()),
-                &self.styles)?;
+                &self.styles,
+                panel_version.width(),
+                panel_version.height())?;
 
             if png_out.is_some() {
                 let _ = imgbuf.save(png_out.unwrap())?;
             }
 
             if display {
-                display::setup_and_display_image(&imgbuf)?;
+                display::setup_and_display_image(&imgbuf, panel_version)?;
             }
             self.last_redraw = Some(now);
             return Ok(Some(processed_data));
@@ -272,6 +274,7 @@ fn main() {
     opts.optopt("p", "debug-port", "Port to run a debug server on.", "PORT");
     opts.optflag("u", "auto-update", "Run the auto-updater.");
     opts.optopt("", "update-track", "Update track to follow (e.g. arm, arm64).", "TRACK");
+    opts.optopt("", "panel-version", "E-paper panel version: v1 (640x384) or v2 (800x480).", "VERSION");
 
     opts.optopt("", "purpleair-credentials-file", "Name of a file containing JSON {key: xx, id: xxx} value with purpleair credentials.", "FILE");
 
@@ -284,6 +287,12 @@ fn main() {
     let debug_port = matches.opt_str("debug-port");
     let auto_update = matches.opt_present("auto-update");
     let update_track: String = matches.opt_str("update-track").unwrap_or("arm64".to_string());
+    let panel_version = match matches.opt_str("panel-version").as_deref() {
+        Some("v1") => display::PanelVersion::V1,
+        Some("v2") => display::PanelVersion::V2,
+        Some(other) => panic!("Unknown panel version '{}'. Use 'v1' or 'v2'.", other),
+        None => display::PanelVersion::V2,
+    };
     let local_png: Option<String> = matches.opt_str("save-image");
     let purpleair_creds: Option<purpleair::Credentials> =
         matches.opt_str("purpleair-credentials-file").map(
@@ -312,7 +321,7 @@ fn main() {
     }
 
     loop {
-        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, &update_track, purpleair_creds.as_ref(), mta_bustime_creds.as_ref()) {
+        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, &update_track, panel_version, purpleair_creds.as_ref(), mta_bustime_creds.as_ref()) {
             Err(err) => error!("{}", err),
             Ok(processed_data) => {
                 if let Some(processed_data) = processed_data {

@@ -22,16 +22,15 @@ pub struct Styles<'a> {
     pub color_white: image::Luma<u8>,
 }
 
-const EPD_WIDTH: usize = 640;
-const EPD_HEIGHT: usize = 384;
-
 pub fn generate_image(data: &subway::ProcessedData,
                       weather_display: Option<&weather::WeatherDisplay>,
                       air_quality: Option<&purpleair::AirQuality>,
                       bus_time: Option<&bustime::BusTimeDisplayData>,
                       version: Option<String>,
-                      styles: &Styles) -> result::TTDashResult<image::GrayImage> {
-    let mut imgbuf = image::GrayImage::new(EPD_WIDTH as u32, EPD_HEIGHT as u32);
+                      styles: &Styles,
+                      epd_width: u32,
+                      epd_height: u32) -> result::TTDashResult<image::GrayImage> {
+    let mut imgbuf = image::GrayImage::new(epd_width, epd_height);
 
     draw_subway_arrivals(&mut imgbuf, styles, data, bus_time);
 
@@ -56,12 +55,12 @@ fn draw_version(imgbuf: &mut image::GrayImage, styles: &Styles, version: &str) {
 fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &subway::ProcessedData, bus_time_data: Option<&bustime::BusTimeDisplayData>) {
     let now = chrono::Utc::now().timestamp();
 
-    imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(EPD_WIDTH as u32, EPD_HEIGHT as u32), styles.color_white);
+    imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(imgbuf.width(), imgbuf.height()), styles.color_white);
 
 //    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 0, scale(50.0), &styles.font_bold, &data.station_name);
     imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 0, scale(40.0), &styles.font, "Manhattan");
 
-    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 45.0), (EPD_HEIGHT as f32 - 10.0, 45.0), styles.color_black);
+    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 45.0), (imgbuf.width() as f32 - 10.0, 45.0), styles.color_black);
 
     use chrono::TimeZone;
 
@@ -100,7 +99,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
     }
 
 
-    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 230.0), (EPD_HEIGHT as f32 - 10.0, 230.0), styles.color_black);
+    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 230.0), (imgbuf.width() as f32 - 10.0, 230.0), styles.color_black);
 
     {
         let section_y = 240;
