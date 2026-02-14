@@ -1,0 +1,40 @@
+version=$1
+
+if [[ -z $1 ||  -z $2 ]]
+then
+    echo "Must pass major & minor version arguments. (Format: 20190721 1)";
+    exit;
+fi
+
+echo "Building version [$1.$2]";
+
+# ===
+
+cargoBinary=target/aarch64-unknown-linux-gnu/release/ttdash
+track=arm64
+
+versionFile=/var/www/html/ttdash-${track}.version
+servingBinaryShortFilename=ttdash-${track}.${1}.${2}
+servingBinaryFullPath=/var/www/html/${servingBinaryShortFilename}
+
+# ===
+
+OPENSSL_INCLUDE_DIR=/home/mrjones/arm64/include OPENSSL_LIB_DIR=/home/mrjones/arm64/lib TTDASH_VERSION="${1}.${2}" cargo build --target aarch64-unknown-linux-gnu --release
+
+checksum=$(md5sum ${cargoBinary} | awk '{print $1}')
+cp ${cargoBinary} ${servingBinaryFullPath}
+
+newBody=$(cat <<EOF
+{
+  "version": {
+    "major": $1,
+    "minor": $2
+  },
+  "md5sum": "${checksum}",
+  "url": "http://linode.mrjon.es/${servingBinaryShortFilename}"
+}
+EOF
+)
+
+cp ${versionFile}{,.bak} | true
+echo ${newBody} > ${versionFile}

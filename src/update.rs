@@ -13,7 +13,6 @@ use crate::result;
 
 pub const VERSION: Option<&'static str> = option_env!("TTDASH_VERSION");
 
-const TRACK: &'static str = "arm";  // TODO(mrjones): Make this configurable
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct TTDashVersion {
@@ -58,9 +57,9 @@ fn parse_version(version_str: &str) -> result::TTDashResult<TTDashVersion> {
     });
 }
 
-fn available_target() -> result::TTDashResult<TTDashUpgradeTarget> {
+fn available_target(track: &str) -> result::TTDashResult<TTDashUpgradeTarget> {
     let body = reqwest::blocking::get(
-        &format!("http://linode.mrjon.es/ttdash-{}.version", TRACK))?.text()?;
+        &format!("http://linode.mrjon.es/ttdash-{}.version", track))?.text()?;
 
     let target_info: TTDashUpgradeTarget = serde_json::from_str(&body)?;
 
@@ -82,12 +81,12 @@ pub fn updater_configured() -> bool {
     return local_version().is_ok();
 }
 
-pub fn binary_update_available() -> Option<TTDashUpgradeTarget> {
-    match (local_version(), available_target()) {
+pub fn binary_update_available(track: &str) -> Option<TTDashUpgradeTarget> {
+    match (local_version(), available_target(track)) {
         (Ok(local_version), Ok(available_target)) => {
             debug!("LOCAL VERSION: {:?}", local_version);
             debug!("AVAILABLE VERSION: {:?}", available_target.version);
-            debug!("TRACK: {}", TRACK);
+            debug!("TRACK: {}", track);
             if available_target.version > local_version {
                 return Some(available_target);
             } else {

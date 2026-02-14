@@ -93,9 +93,9 @@ impl<'a> TTDash<'a> {
         return Ok(());
     }
 
-    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, purpleair_creds: Option<&purpleair::Credentials>, mta_bustime_creds: Option<&String>) -> result::TTDashResult<Option<subway::ProcessedData>> {
+    fn one_iteration(&mut self, display: bool, png_out: Option<&str>, prev_processed_data: &subway::ProcessedData, auto_update: bool, update_track: &str, purpleair_creds: Option<&purpleair::Credentials>, mta_bustime_creds: Option<&String>) -> result::TTDashResult<Option<subway::ProcessedData>> {
         if auto_update {
-            match update::binary_update_available() {
+            match update::binary_update_available(update_track) {
                 Some(target) => {
                     info!("Upgrade available to version {}.", target.version);
                     let argv0 = std::env::args().nth(0).expect("argv0");
@@ -271,6 +271,7 @@ fn main() {
     opts.optopt("i", "save-image", "Where to put a png.", "FILENAME");
     opts.optopt("p", "debug-port", "Port to run a debug server on.", "PORT");
     opts.optflag("u", "auto-update", "Run the auto-updater.");
+    opts.optopt("", "update-track", "Update track to follow (e.g. arm, arm64).", "TRACK");
 
     opts.optopt("", "purpleair-credentials-file", "Name of a file containing JSON {key: xx, id: xxx} value with purpleair credentials.", "FILE");
 
@@ -282,6 +283,7 @@ fn main() {
     let one_shot = matches.opt_present("one-shot");
     let debug_port = matches.opt_str("debug-port");
     let auto_update = matches.opt_present("auto-update");
+    let update_track: String = matches.opt_str("update-track").unwrap_or("arm64".to_string());
     let local_png: Option<String> = matches.opt_str("save-image");
     let purpleair_creds: Option<purpleair::Credentials> =
         matches.opt_str("purpleair-credentials-file").map(
@@ -292,7 +294,7 @@ fn main() {
             |file| std::fs::read_to_string(file)
                 .expect("while reading purpleair-credentials-file"));
 
-    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} local-png={:?}, purpleair-credentials={:?} mta-bustime-credentials={:?}", display, one_shot, debug_port, auto_update, local_png, purpleair_creds, mta_bustime_creds);
+    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} update-track={} local-png={:?}, purpleair-credentials={:?} mta-bustime-credentials={:?}", display, one_shot, debug_port, auto_update, update_track, local_png, purpleair_creds, mta_bustime_creds);
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -310,7 +312,7 @@ fn main() {
     }
 
     loop {
-        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, purpleair_creds.as_ref(), mta_bustime_creds.as_ref()) {
+        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, &update_track, purpleair_creds.as_ref(), mta_bustime_creds.as_ref()) {
             Err(err) => error!("{}", err),
             Ok(processed_data) => {
                 if let Some(processed_data) = processed_data {
