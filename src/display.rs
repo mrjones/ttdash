@@ -50,10 +50,9 @@ pub fn setup_and_display_image(image: &image::GrayImage, panel: PanelVersion) ->
 
     if panel == PanelVersion::V2 {
         let mut pwr_pin = gpio.get(PWR_PIN).expect("get pwr pin").into_output();
+        pwr_pin.set_reset_on_drop(false);
         pwr_pin.set_high();
         std::thread::sleep(std::time::Duration::from_millis(100));
-        // pwr_pin must stay high, so leak it to avoid drop resetting the pin
-        std::mem::forget(pwr_pin);
     }
 
     init_display(&mut gpio, &mut spi, &mut dc_pin, &busy_pin, panel);

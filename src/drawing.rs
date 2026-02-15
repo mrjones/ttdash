@@ -53,6 +53,7 @@ fn draw_version(imgbuf: &mut image::GrayImage, styles: &Styles, version: &str) {
 
 
 fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &subway::ProcessedData, bus_time_data: Option<&bustime::BusTimeDisplayData>) {
+    let view_width = ((imgbuf.width() * 7) / 12) - 20;
     let now = chrono::Utc::now().timestamp();
 
     imageproc::drawing::draw_filled_rect_mut(imgbuf, imageproc::rect::Rect::at(0,0).of_size(imgbuf.width(), imgbuf.height()), styles.color_white);
@@ -60,7 +61,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
 //    imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 0, scale(50.0), &styles.font_bold, &data.station_name);
     imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 10, 0, scale(40.0), &styles.font, "Manhattan");
 
-    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 45.0), (imgbuf.width() as f32 - 10.0, 45.0), styles.color_black);
+    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 45.0), (view_width as f32 - 10.0, 45.0), styles.color_black);
 
     use chrono::TimeZone;
 
@@ -73,7 +74,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
             } else {
                 x = 10;
             }
-            imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, x, 15, scale(250.0), &styles.font_black, big_text);
+            imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, x, 15, scale(280.0), &styles.font_black, big_text);
             if big_line != "R" {
                 draw_subway_line_emblem(imgbuf, &big_line, 30, 75, 20, styles);
             }
@@ -82,33 +83,33 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
     }
 
     let mut y = 50;
-    let y_step = 40;
+    let y_step = 50;
     for (ref ts, ref line) in data.upcoming_trains.iter().take(4) {
         let countdown = countdown_summary(now, *ts);
         let arrival = chrono_tz::US::Eastern.timestamp(*ts, 0);
         let arrival_formatted = arrival.format("%-I:%M").to_string();
 
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 219, y, scale(50.0), &styles.font_bold, &countdown);
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 284, y, scale(50.0), &styles.font, &arrival_formatted);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 245, y, scale(60.0), &styles.font_bold, &countdown);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 305, y, scale(60.0), &styles.font, &arrival_formatted);
 
         if line != "R" {
-            draw_subway_line_emblem(imgbuf, line, 375, (y + 25) as u32, 12, styles);
+            draw_subway_line_emblem(imgbuf, line, 390, (y + 25) as u32, 12, styles);
         }
 
         y = y + y_step;
     }
 
 
-    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 230.0), (imgbuf.width() as f32 - 10.0, 230.0), styles.color_black);
+    imageproc::drawing::draw_line_segment_mut(imgbuf, (10.0, 260.0), (view_width as f32 - 10.0, 260.0), styles.color_black);
 
     {
-        let section_y = 240;
+        let section_y = 270;
         imageproc::drawing::draw_polygon_mut(imgbuf, &[
             imageproc::point::Point::new(20, section_y + 32),
             imageproc::point::Point::new(28, section_y + 12),
             imageproc::point::Point::new(12, section_y + 12),
         ], styles.color_black);
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(50.0), &styles.font, "R: ");
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(60.0), &styles.font, "R: ");
 
         let outbound_text: String = if data.upcoming_outbound_trains.is_empty() {
             "NO TRAINS".to_string()
@@ -126,7 +127,7 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
                 .join(", ")
         };
 
-        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 100, section_y, scale(50.0), &styles.font_bold, &outbound_text);
+        imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 120, section_y, scale(60.0), &styles.font_bold, &outbound_text);
     }
 
 
@@ -137,28 +138,28 @@ fn draw_subway_arrivals(imgbuf: &mut image::GrayImage, styles: &Styles, data: &s
         Some(bus_time_data) => {
             {
                 // Uptown B63
-                let section_y = 290;
-                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(50.0), &styles.font, "B63: ");
+                let section_y = 330;
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(60.0), &styles.font, "B63: ");
                 imageproc::drawing::draw_polygon_mut(imgbuf, &[
                     imageproc::point::Point::new(20, section_y + 16),
                     imageproc::point::Point::new(28, section_y + 36),
                     imageproc::point::Point::new(12, section_y + 36),
                 ], styles.color_black);
                 let uptown_text = bus_time_data.uptown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
-                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 120, section_y, scale(50.0), &styles.font_bold, &uptown_text);
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 140, section_y, scale(60.0), &styles.font_bold, &uptown_text);
             }
 
             {
                 // Downtown B63
-                let section_y = 340;
+                let section_y = 390;
                 imageproc::drawing::draw_polygon_mut(imgbuf, &[
                     imageproc::point::Point::new(20, section_y + 32),
                     imageproc::point::Point::new(28, section_y + 12),
                     imageproc::point::Point::new(12, section_y + 12),
                 ], styles.color_black);
-                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(50.0), &styles.font, "B63: ");
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 32, section_y, scale(60.0), &styles.font, "B63: ");
                 let downtown_text = bus_time_data.downtown_waits.iter().take(3).map(|w| format!("{}", w)).collect::<Vec<String>>().join(", ");
-                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 120, section_y, scale(50.0), &styles.font_bold, &downtown_text);
+                imageproc::drawing::draw_text_mut(imgbuf, styles.color_black, 140, section_y, scale(60.0), &styles.font_bold, &downtown_text);
             }
         }
     }
@@ -205,7 +206,7 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
     let precip_bar_max_height = 50;
 
     let hour_width: u32 = 2;
-    let day_width: u32 = 24 * hour_width + 5;
+    let day_width: u32 = 24 * hour_width + 15;
 
     let day_labels = vec!["S", "M", "T", "W", "R", "F", "S"];
     let first_entry = weather_display.days.iter().nth(0).ok_or(
@@ -223,20 +224,20 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
             imgbuf, styles.color_black,
             /* x= */ (left_x + left_offset) as i32 + day_count as i32 * day_width as i32 + (8 * hour_width) as i32,
             /* y= */ (top_y) as i32,
-            scale(40.0), &styles.font_bold, &day_label);
+            scale(55.0), &styles.font_bold, &day_label);
 
         // High temperature
         imageproc::drawing::draw_text_mut(
             imgbuf, styles.color_black,
             /* x = */ (left_x + left_offset + day_count * day_width as i32 + (4 * hour_width as i32)) as i32,
-            /* y = */ (top_y + 30) as i32,
-            scale(45.0), &styles.font, &format!("{:.0}", info.max_t));
+            /* y = */ (top_y + 45) as i32,
+            scale(60.0), &styles.font, &format!("{:.0}", info.max_t));
 
         // Precip bars
-        let precip_bar_top = top_y + 75;
+        let precip_bar_top = top_y + 100;
         let precip_bar_width = (4 * day_width) as i32;
 
-        draw_raindrop(left_x, top_y + 90, 25, imgbuf, styles)?;
+        draw_raindrop(left_x, top_y + 110, 25, imgbuf, styles)?;
         imageproc::drawing::draw_line_segment_mut(
             imgbuf,
             ((left_x + left_offset) as f32, precip_bar_top as f32),
@@ -265,10 +266,10 @@ fn draw_daily_forecast(left_x: i32, top_y: i32, imgbuf: &mut image::GrayImage, s
 }
 
 fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display: &weather::WeatherDisplay) -> result::TTDashResult<()> {
-    let left_x: i32 = 400;
+    let left_x: i32 = ((imgbuf.width() * 7 / 12)) as i32 + 10;
     let top_y: i32 = 00;
 
-    draw_daily_forecast(left_x, top_y + 240, imgbuf, styles, weather_display)?;
+    draw_daily_forecast(left_x, top_y + 270, imgbuf, styles, weather_display)?;
 
     let first_entry = weather_display.days.iter().nth(0).ok_or(
         result::make_error("missing first entry"))?;
@@ -277,14 +278,14 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
         /* x= */ (left_x + 40) as i32, /* y= */ top_y as i32,
-        scale(140.0),
+        scale(180.0),
         &styles.font_black, &format!("{:.0}°", weather_display.current_t));
 
     imageproc::drawing::draw_text_mut(
         imgbuf, styles.color_black,
         /* x= */ left_x as i32,
-        /* y= */ (top_y + 110) as i32,
-        scale(80.0), &styles.font_bold,
+        /* y= */ (top_y + 140) as i32,
+        scale(90.0), &styles.font_bold,
         &format!("{}° / {}°", first_info.min_t, first_info.max_t));
 
     // Dew point ranges:
@@ -298,11 +299,11 @@ fn draw_weather(imgbuf: &mut image::GrayImage, styles: &Styles, weather_display:
     let dew_point_bucket =
         std::cmp::min(5, std::cmp::max(0, (dew_point - 50) / 5));
 
-    let dp_box_width = 35;
-    let dp_box_height = 15;
+    let dp_box_width = 45;
+    let dp_box_height = 17;
     let dp_box_gap = 10;
     for i in 0..5 as i32 {
-        let rect = imageproc::rect::Rect::at(left_x + i * (dp_box_width + dp_box_gap), top_y + 200).of_size(dp_box_width as u32, dp_box_height as u32);
+        let rect = imageproc::rect::Rect::at(left_x + i * (dp_box_width + dp_box_gap), top_y + 240).of_size(dp_box_width as u32, dp_box_height as u32);
         if i < dew_point_bucket {
             imageproc::drawing::draw_filled_rect_mut(imgbuf, rect, styles.color_black);
         } else {
