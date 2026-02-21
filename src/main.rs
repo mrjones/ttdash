@@ -37,6 +37,25 @@ pub mod webclient_api {
 }
 
 
+struct SleepSchedule {
+    start_hour: u32,  // Hour to start sleeping (e.g. 22 for 10pm), Eastern time
+    end_hour: u32,    // Hour to stop sleeping (e.g. 6 for 6am), Eastern time
+}
+
+impl SleepSchedule {
+    fn is_sleep_time(&self, now: &chrono::DateTime<chrono::Utc>) -> bool {
+        use chrono::Timelike;
+        let eastern: chrono::DateTime<chrono_tz::Tz> = now.with_timezone(&chrono_tz::US::Eastern);
+        let hour = eastern.hour();
+        if self.start_hour > self.end_hour {
+            // Crosses midnight: e.g. 22-6 means sleep from 22:00 to 05:59
+            hour >= self.start_hour || hour < self.end_hour
+        } else {
+            hour >= self.start_hour && hour < self.end_hour
+        }
+    }
+}
+
 struct TTDash<'a> {
     weather_display: Option<weather::WeatherDisplay>,
     forecast_timestamp: chrono::DateTime<chrono::Utc>,
@@ -45,6 +64,7 @@ struct TTDash<'a> {
     bus_time_data: Option<bustime::BusTimeDisplayData>,
     styles: drawing::Styles<'a>,
     last_redraw: Option<chrono::DateTime<chrono::Utc>>,
+    is_sleeping: bool,
 }
 
 impl<'a> TTDash<'a> {
@@ -76,6 +96,7 @@ impl<'a> TTDash<'a> {
                 color_white: image::Luma([255u8; 1]),
             },
             last_redraw: None,
+            is_sleeping: false,
         }
     }
 
@@ -280,6 +301,9 @@ fn main() {
 
     opts.optopt("", "mta-bustime-credentials-file", "Name of a file containing the MTA bustime API key", "FILE");
 
+    opts.optopt("", "sleep-start", "Hour (0-23, Eastern) to start sleeping the display (e.g. 22 for 10pm).", "HOUR");
+    opts.optopt("", "sleep-end", "Hour (0-23, Eastern) to stop sleeping the display (e.g. 6 for 6am).", "HOUR");
+
     let matches = opts.parse(&args[1..]).expect("parse opts");
 
     let display = !matches.opt_present("skip-display");
@@ -303,7 +327,19 @@ fn main() {
             |file| std::fs::read_to_string(file)
                 .expect("while reading purpleair-credentials-file"));
 
-    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} update-track={} local-png={:?}, purpleair-credentials={:?} mta-bustime-credentials={:?}", display, one_shot, debug_port, auto_update, update_track, local_png, purpleair_creds, mta_bustime_creds);
+    let sleep_schedule: Option<SleepSchedule> = match (matches.opt_str("sleep-start"), matches.opt_str("sleep-end")) {
+        (Some(start), Some(end)) => {
+            let start_hour: u32 = start.parse().expect("sleep-start must be a number 0-23");
+            let end_hour: u32 = end.parse().expect("sleep-end must be a number 0-23");
+            assert!(start_hour < 24, "sleep-start must be 0-23");
+            assert!(end_hour < 24, "sleep-end must be 0-23");
+            Some(SleepSchedule { start_hour, end_hour })
+        },
+        (None, None) => None,
+        _ => panic!("Must specify both --sleep-start and --sleep-end, or neither."),
+    };
+
+    info!("Running with config: display={} one-shot={} debug-port={:?} auto-update={} update-track={} local-png={:?}, purpleair-credentials={:?} mta-bustime-credentials={:?} sleep={:?}", display, one_shot, debug_port, auto_update, update_track, local_png, purpleair_creds, mta_bustime_creds, sleep_schedule.as_ref().map(|s| format!("{}-{}", s.start_hour, s.end_hour)));
 
     let mut prev_processed_data = subway::ProcessedData::empty();
     let mut ttdash = TTDash::new();
@@ -321,11 +357,71 @@ fn main() {
     }
 
     loop {
-        match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, &update_track, panel_version, purpleair_creds.as_ref(), mta_bustime_creds.as_ref()) {
-            Err(err) => error!("{}", err),
-            Ok(processed_data) => {
-                if let Some(processed_data) = processed_data {
-                    prev_processed_data = processed_data;
+        let now = chrono::Utc::now();
+        let should_sleep = sleep_schedule.as_ref().map_or(false, |s| s.is_sleep_time(&now));
+
+        if should_sleep {
+            // Refresh weather/air quality data if stale
+            if ttdash.weather_display.is_none() || (now.timestamp() - ttdash.forecast_timestamp.timestamp() > 60 * 30) {
+                match ttdash.update_weather(&now) {
+                    Ok(_) => {},
+                    Err(err) => error!("Error updating weather in sleep mode: {:?}", err),
+                }
+            }
+            if let Some(creds) = purpleair_creds.as_ref() {
+                if ttdash.air_quality.is_none() || (now.timestamp() - ttdash.air_quality_timestamp.timestamp() > 60) {
+                    match ttdash.update_air_quality(creds, &now) {
+                        Ok(_) => {},
+                        Err(err) => error!("Error updating air quality in sleep mode: {:?}", err),
+                    }
+                }
+            }
+
+            // Redraw on first sleep iteration, or once per hour
+            let needs_redraw = if !ttdash.is_sleeping {
+                info!("Entering sleep mode.");
+                true
+            } else if let Some(last) = ttdash.last_redraw {
+                now.timestamp() - last.timestamp() > 60 * 60
+            } else {
+                true
+            };
+
+            if needs_redraw {
+                match drawing::generate_sleep_image(
+                    ttdash.weather_display.as_ref(),
+                    ttdash.air_quality.as_ref(),
+                    &ttdash.styles,
+                    panel_version.width(), panel_version.height()) {
+                    Ok(imgbuf) => {
+                        if let Some(ref png_path) = local_png {
+                            let _ = imgbuf.save(png_path);
+                        }
+                        if display {
+                            match display::setup_and_display_image(&imgbuf, panel_version) {
+                                Err(err) => error!("Error displaying sleep image: {}", err),
+                                Ok(_) => {},
+                            }
+                        }
+                        ttdash.last_redraw = Some(now);
+                    },
+                    Err(err) => error!("Error generating sleep image: {}", err),
+                }
+            }
+            ttdash.is_sleeping = true;
+        } else {
+            if ttdash.is_sleeping {
+                info!("Waking up from sleep mode.");
+                ttdash.is_sleeping = false;
+                ttdash.last_redraw = None;  // Force a redraw on wake
+            }
+
+            match ttdash.one_iteration(display, local_png.as_ref().map(String::as_ref), &prev_processed_data, auto_update, &update_track, panel_version, purpleair_creds.as_ref(), mta_bustime_creds.as_ref()) {
+                Err(err) => error!("{}", err),
+                Ok(processed_data) => {
+                    if let Some(processed_data) = processed_data {
+                        prev_processed_data = processed_data;
+                    }
                 }
             }
         }
@@ -334,6 +430,7 @@ fn main() {
             break;
         }
 
-        std::thread::sleep(std::time::Duration::from_secs(5));
+        let sleep_secs = if ttdash.is_sleeping { 60 } else { 5 };
+        std::thread::sleep(std::time::Duration::from_secs(sleep_secs));
     }
 }

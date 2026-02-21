@@ -22,6 +22,38 @@ pub struct Styles<'a> {
     pub color_white: image::Luma<u8>,
 }
 
+pub fn generate_sleep_image(weather_display: Option<&weather::WeatherDisplay>,
+                            air_quality: Option<&purpleair::AirQuality>,
+                            styles: &Styles,
+                            epd_width: u32,
+                            epd_height: u32) -> result::TTDashResult<image::GrayImage> {
+    let mut imgbuf = image::GrayImage::new(epd_width, epd_height);
+    imageproc::drawing::draw_filled_rect_mut(
+        &mut imgbuf,
+        imageproc::rect::Rect::at(0, 0).of_size(epd_width, epd_height),
+        styles.color_white);
+
+    // "Good night!" on the left side (where subway info normally goes)
+    let text = "Good night!";
+    let x = 30;
+    let y = (epd_height as i32 - 90) / 2;
+    imageproc::drawing::draw_text_mut(
+        &mut imgbuf, styles.color_black,
+        x, y,
+        scale(90.0), &styles.font_bold, text);
+
+    // Weather on the right side, same as normal mode
+    if let Some(wd) = weather_display {
+        draw_weather(&mut imgbuf, styles, wd)?;
+    }
+
+    if let Some(aq) = air_quality {
+        draw_air_quality(&mut imgbuf, styles, aq)?;
+    }
+
+    Ok(imgbuf)
+}
+
 pub fn generate_image(data: &subway::ProcessedData,
                       weather_display: Option<&weather::WeatherDisplay>,
                       air_quality: Option<&purpleair::AirQuality>,
