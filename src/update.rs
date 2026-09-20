@@ -147,7 +147,9 @@ pub fn upgrade_to(target: &TTDashUpgradeTarget, argv0: &str, argv: &Vec<String>)
         &filename, std::os::unix::fs::PermissionsExt::from_mode(0o777))?;
     std::fs::remove_file("/tmp/ttdash.prev").ok();
     std::fs::copy(argv0, "/tmp/ttdash.prev")?;
-    std::fs::rename(&filename, argv0)?;
+    std::fs::remove_file(argv0)?;
+    std::fs::copy(&filename, argv0)?;
+    std::fs::remove_file(&filename).ok();
 
     let argv0_c = std::ffi::CString::new(argv0).expect("cstringing argv0");
     let argv_c: Vec<std::ffi::CString> = argv.iter()
